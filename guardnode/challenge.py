@@ -10,9 +10,13 @@ def connect(args):
         (args.rpcuser, args.rpcpassword, args.rpcconnect, args.rpcport))
 
 def asset_in_block(ocean, asset, block_height):
-    block = ocean.getblock(ocean.getblockhash(block_height), False)
-    rev_asset = util.bytes_to_hex_str(util.hex_str_to_bytes(asset)[::-1])
-    return rev_asset in block
+    block = ocean.getblock(ocean.getblockhash(block_height), True)
+    if "tx" in block:
+        for txid in block['tx']:
+            tx = ocean.getrawtransaction(txid, False)
+            if asset in tx:
+                return txid
+    return None
 
 class Challenge(DaemonThread):
     def __init__(self, args):
@@ -27,7 +31,8 @@ class Challenge(DaemonThread):
 
         # test valid hash
         util.assert_is_hash_string(self.args.challengeasset)
-        assert(asset_in_block(self.ocean, self.args.challengeasset, 0))
+        self.rev_challengeasset = util.bytes_to_hex_str(util.hex_str_to_bytes(self.args.challengeasset)[::-1])
+        assert(asset_in_block(self.ocean, self.rev_challengeasset, 0) != None)
         self.logger.info("Challenge asset OK")
 
         # TODO: api check to verify bid is successful
@@ -50,7 +55,7 @@ class Challenge(DaemonThread):
             block_height = self.ocean.getblockcount()
             if block_height > last_block_height:
                 self.logger.info("current block height: {}".format(block_height))
-                if asset_in_block(self.ocean, self.args.challengeasset, block_height):
+                if asset_in_block(self.ocean, self.rev_challengeasset, block_height):
                     self.logger.info("challenge found at height: {}".format(block_height))
                 last_block_height = block_height
             else:
