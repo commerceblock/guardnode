@@ -45,5 +45,13 @@ class Challenge(DaemonThread):
         self.logger.info("Signing test OK")
 
     def run(self):
+        last_block_height = 0
         while not self.stop_event.is_set():
-            sleep(1)
+            block_height = self.ocean.getblockcount()
+            if block_height > last_block_height:
+                self.logger.info("current block height: {}".format(block_height))
+                if asset_in_block(self.ocean, self.args.challengeasset, block_height):
+                    self.logger.info("challenge found at height: {}".format(block_height))
+                last_block_height = block_height
+            else:
+                sleep(0.1) # seconds
