@@ -19,7 +19,9 @@ def parse_args():
 
     parser.add_argument('--bidtxid', required=True, type=str, help="Guardnode winning bid txid")
     parser.add_argument('--pubkey', required=True, type=str, help="Guardnode public key")
+
     parser.add_argument('--coordinator', required=False, type=str, default=COORDINATOR_DEFAULT, help="Coordinator host address")
+    parser.add_argument('--challengeasset', required=True, type=str, help="Challenge asset hash")
 
     parser.add_argument('--addressprefix', required=False, type=int, default=235, help="Chain P2PKH address prefix")
 

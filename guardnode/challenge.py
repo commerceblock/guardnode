@@ -9,6 +9,11 @@ def connect(args):
     return AuthServiceProxy("http://%s:%s@%s:%s"%
         (args.rpcuser, args.rpcpassword, args.rpcconnect, args.rpcport))
 
+def asset_in_block(ocean, asset, block_height):
+    block = ocean.getblock(ocean.getblockhash(block_height), False)
+    rev_asset = util.bytes_to_hex_str(util.hex_str_to_bytes(asset)[::-1])
+    return rev_asset in block
+
 class Challenge(DaemonThread):
     def __init__(self, args):
         super().__init__()
@@ -16,11 +21,15 @@ class Challenge(DaemonThread):
         self.ocean = connect(self.args)
 
         logging.basicConfig()
-        logging.getLogger("BitcoinRPC").setLevel(logging.DEBUG)
+        logging.getLogger("BitcoinRPC").setLevel(logging.INFO)
         self.logger = logging.getLogger("Challenge")
         self.logger.setLevel(logging.INFO)
 
         # test valid hash
+        util.assert_is_hash_string(self.args.challengeasset)
+        assert(asset_in_block(self.ocean, self.args.challengeasset, 0))
+        self.logger.info("Challenge asset OK")
+
         # TODO: api check to verify bid is successful
         util.assert_is_hash_string(self.args.bidtxid)
         self.logger.info("Bid txid OK")

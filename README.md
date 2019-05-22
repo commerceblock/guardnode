@@ -16,4 +16,5 @@ Arguments:
 - `--bidtxid`: Guardnode winning bid txid
 - `--pubkey`: Guardnode public key
 - `--coordinator`: Coordinator host address
+- `--challengeasset`: Challenge asset hash
 - `--addressprefix`: Chain P2PKH address prefix
