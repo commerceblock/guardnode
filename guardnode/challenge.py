@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import logging
+import sys
 from time import sleep
 from bitcoinrpc.authproxy import AuthServiceProxy, JSONRPCException
 from .daemon import DaemonThread
@@ -29,25 +30,25 @@ class Challenge(DaemonThread):
         self.logger = logging.getLogger("Challenge")
         self.logger.setLevel(logging.INFO)
 
-        # test valid hash
+        # test valid asset hash
         util.assert_is_hash_string(self.args.challengeasset)
         self.rev_challengeasset = util.bytes_to_hex_str(util.hex_str_to_bytes(self.args.challengeasset)[::-1])
-        assert(asset_in_block(self.ocean, self.rev_challengeasset, 0) != None)
-        self.logger.info("Challenge asset OK")
+        if asset_in_block(self.ocean, self.rev_challengeasset, 0) == None:
+            self.logger.error("Asset {} not found in genesis block".format(self.args.challengeasset))
+            sys.exit(1)
+        self.logger.info("Challenge asset VALID")
 
-        # TODO: api check to verify bid is successful
+        # test valid bid txid
         util.assert_is_hash_string(self.args.bidtxid)
-        self.logger.info("Bid txid OK")
+        self.logger.info("Bid txid VALID")
 
         # test valid key and imported
         self.address = address.key_to_p2pkh_version(args.pubkey, args.addressprefix)
         validate = self.ocean.validateaddress(self.address)
-        assert(validate['isvalid'] == True)
-        assert(validate['ismine'] == True)
-        self.logger.info("Key OK")
-
-        self.ocean.signmessage(self.address, self.args.bidtxid)
-        self.logger.info("Signing test OK")
+        if validate['ismine'] == False:
+            self.logger.error("Key for address {} is missing from the wallet".format(self.address))
+            sys.exit(1)
+        self.logger.info("Pubkey VALID")
 
     def run(self):
         last_block_height = 0
