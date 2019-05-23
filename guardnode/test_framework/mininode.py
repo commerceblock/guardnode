@@ -36,7 +36,7 @@ from threading import RLock
 from threading import Thread
 import logging
 import copy
-from federation.test_framework.siphash import siphash256
+from .siphash import siphash256
 
 BIP0031_VERSION = 60000
 MY_VERSION = 70014  # past bip-31 for ping/pong
