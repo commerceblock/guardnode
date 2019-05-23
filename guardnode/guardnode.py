@@ -8,7 +8,7 @@ from .challenge import Challenge
 ADDRESS_PREFIX_DEFAULT = 235
 
 # Default coordinator host address
-COORDINATOR_DEFAULT = "http://coordinator:3333/challengeproof"
+COORDINATOR_DEFAULT = "coordinator:9999"
 
 def parse_args():
     parser = ArgumentParser()
@@ -23,7 +23,7 @@ def parse_args():
     parser.add_argument('--coordinator', required=False, type=str, default=COORDINATOR_DEFAULT, help="Coordinator host address")
     parser.add_argument('--challengeasset', required=True, type=str, help="Challenge asset hash")
 
-    parser.add_argument('--addressprefix', required=False, type=int, default=235, help="Chain P2PKH address prefix")
+    parser.add_argument('--addressprefix', required=False, type=int, default=ADDRESS_PREFIX_DEFAULT, help="Chain P2PKH address prefix")
 
     return parser.parse_args()
 

@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 import logging
+import json
+import requests
 import sys
+import base58
 from time import sleep
-from bitcoinrpc.authproxy import AuthServiceProxy, JSONRPCException
 from .daemon import DaemonThread
-from .test_framework import util, address
+from .test_framework import util, address, key, authproxy
 
 def connect(args):
-    return AuthServiceProxy("http://%s:%s@%s:%s"%
+    return authproxy.AuthServiceProxy("http://%s:%s@%s:%s"%
         (args.rpcuser, args.rpcpassword, args.rpcconnect, args.rpcport))
 
 def asset_in_block(ocean, asset, block_height):
@@ -24,6 +26,7 @@ class Challenge(DaemonThread):
         super().__init__()
         self.args = args
         self.ocean = connect(self.args)
+        self.url = "http://{}/challengeproof".format(self.args.coordinator)
 
         logging.basicConfig()
         logging.getLogger("BitcoinRPC").setLevel(logging.INFO)
@@ -32,15 +35,13 @@ class Challenge(DaemonThread):
 
         # test valid asset hash
         util.assert_is_hash_string(self.args.challengeasset)
-        self.rev_challengeasset = util.bytes_to_hex_str(util.hex_str_to_bytes(self.args.challengeasset)[::-1])
+        self.rev_challengeasset = util.hex_str_rev_hex_str(self.args.challengeasset)
         if asset_in_block(self.ocean, self.rev_challengeasset, 0) == None:
             self.logger.error("Asset {} not found in genesis block".format(self.args.challengeasset))
             sys.exit(1)
-        self.logger.info("Challenge asset VALID")
 
         # test valid bid txid
         util.assert_is_hash_string(self.args.bidtxid)
-        self.logger.info("Bid txid VALID")
 
         # test valid key and imported
         self.address = address.key_to_p2pkh_version(args.pubkey, args.addressprefix)
@@ -48,7 +49,25 @@ class Challenge(DaemonThread):
         if validate['ismine'] == False:
             self.logger.error("Key for address {} is missing from the wallet".format(self.address))
             sys.exit(1)
-        self.logger.info("Pubkey VALID")
+
+        # set key for signing
+        priv = self.ocean.dumpprivkey(self.address)
+        decoded = base58.b58decode(priv)[1:-5] # check for compressed or not
+        self.key = key.CECKey()
+        self.key.set_secretbytes(decoded)
+        self.key.set_compressed(True)
+
+    def respond(self, txid):
+        sig_hex = util.bytes_to_hex_str(self.key.sign(util.hex_str_to_rev_bytes(txid)))
+
+        data = '{{"txid": "{}", "pubkey": "{}", "hash": "{}", "sig": "{}"}}'.\
+            format(self.args.bidtxid, self.args.pubkey, txid, sig_hex)
+        headers = {'content-type': 'application/json', 'Accept-Charset': 'UTF-8'}
+        r = requests.post(self.url, data=data, headers=headers)
+
+        self.logger.info("response sent\nsignature:\n{}\ntxid:\n{}".format(sig_hex, txid))
+        if r.status_code != 200:
+            self.logger.error(r.content)
 
     def run(self):
         last_block_height = 0
@@ -56,8 +75,10 @@ class Challenge(DaemonThread):
             block_height = self.ocean.getblockcount()
             if block_height > last_block_height:
                 self.logger.info("current block height: {}".format(block_height))
-                if asset_in_block(self.ocean, self.rev_challengeasset, block_height):
+                txid = asset_in_block(self.ocean, self.rev_challengeasset, block_height)
+                if txid != None:
                     self.logger.info("challenge found at height: {}".format(block_height))
+                    self.respond(txid)
                 last_block_height = block_height
             else:
                 sleep(0.1) # seconds
