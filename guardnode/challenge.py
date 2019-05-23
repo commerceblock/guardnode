@@ -72,13 +72,16 @@ class Challenge(DaemonThread):
     def run(self):
         last_block_height = 0
         while not self.stop_event.is_set():
-            block_height = self.ocean.getblockcount()
-            if block_height > last_block_height:
-                self.logger.info("current block height: {}".format(block_height))
-                txid = asset_in_block(self.ocean, self.rev_challengeasset, block_height)
-                if txid != None:
-                    self.logger.info("challenge found at height: {}".format(block_height))
-                    self.respond(txid)
-                last_block_height = block_height
-            else:
-                sleep(0.1) # seconds
+            try:
+                block_height = self.ocean.getblockcount()
+                if block_height > last_block_height:
+                    self.logger.info("current block height: {}".format(block_height))
+                    txid = asset_in_block(self.ocean, self.rev_challengeasset, block_height)
+                    if txid != None:
+                        self.logger.info("challenge found at height: {}".format(block_height))
+                        self.respond(txid)
+                    last_block_height = block_height
+            except Exception as e:
+                self.logger.error(e)
+                self.ocean = connect(self.args)
+            sleep(0.1) # seconds
