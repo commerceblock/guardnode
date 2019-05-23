@@ -122,6 +122,12 @@ def bytes_to_hex_str(byte_str):
 def hex_str_to_bytes(hex_str):
     return unhexlify(hex_str.encode('ascii'))
 
+def hex_str_to_rev_bytes(s):
+    return hex_str_to_bytes(s)[::-1]
+
+def hex_str_rev_hex_str(s):
+    return bytes_to_hex_str(hex_str_to_rev_bytes(s))
+
 def str_to_b64str(string):
     return b64encode(string.encode('utf-8')).decode('ascii')
 
