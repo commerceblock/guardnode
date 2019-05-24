@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
+import logging
+import traceback
 from time import sleep
 from argparse import ArgumentParser
 from .challenge import Challenge
+from .alerts import Alerts
 
 # This prefix corresponds to the Ocean Custom params
 # prefix. Replace with the argumetn below accordingly
@@ -29,19 +32,41 @@ def parse_args():
 
     return parser.parse_args()
 
-def main():
-    args = parse_args()
-
+def run_guardnode(args):
     # spawn challenge handling in new thread
     challenge = Challenge(args)
     challenge.start()
 
+    # spawn allerts handling in new thread
+    alerts = Alerts(args)
+    alerts.start()
+
+    return (challenge, alerts)
+
+def main():
+    args = parse_args()
+    logger = logging.getLogger("Guardnode")
+    logger.setLevel(logging.INFO)
+    challenge_handler = None
+    alerts_handler = None
     try:
-        while 1:
-            sleep(300)
+        (challenge_handler, alerts_handler) = run_guardnode(args)
+        while True:
+            if challenge_handler.error:
+                raise challenge_handler.error
+            if alerts_handler.error:
+                raise alerts_handler.error
+            sleep(0.01)
 
     except KeyboardInterrupt:
-        challenge.stop()
+        logger.error("KeyboardInterrupt")
+    except Exception as e:
+        logger.error(traceback.format_exc())
+    finally:
+        if challenge_handler:
+            challenge_handler.stop()
+        if alerts_handler:
+            alerts_handler.stop()
 
 if __name__ == "__main__":
     main()

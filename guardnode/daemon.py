@@ -7,6 +7,7 @@ class Daemon(ABC):
     def __init__(self, event):
         self.stop_event = event
         self.daemon = True
+        self.error = None
 
     def stop(self):
         self.stop_event.set()

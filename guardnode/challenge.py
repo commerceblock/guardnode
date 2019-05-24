@@ -83,5 +83,5 @@ class Challenge(DaemonThread):
                     last_block_height = block_height
             except Exception as e:
                 self.logger.error(e)
-                self.ocean = connect(self.args)
+                self.error = e
             sleep(0.1) # seconds
