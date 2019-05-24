@@ -26,7 +26,7 @@ class Challenge(DaemonThread):
         super().__init__()
         self.args = args
         self.ocean = connect(self.args)
-        self.url = "http://{}/challengeproof".format(self.args.coordinator)
+        self.url = "http://{}/challengeproof".format(self.args.challengehost)
 
         logging.basicConfig()
         logging.getLogger("BitcoinRPC").setLevel(logging.INFO)
@@ -44,7 +44,7 @@ class Challenge(DaemonThread):
         util.assert_is_hash_string(self.args.bidtxid)
 
         # test valid key and imported
-        self.address = address.key_to_p2pkh_version(args.pubkey, args.addressprefix)
+        self.address = address.key_to_p2pkh_version(args.bidpubkey, args.nodeaddrprefix)
         validate = self.ocean.validateaddress(self.address)
         if validate['ismine'] == False:
             self.logger.error("Key for address {} is missing from the wallet".format(self.address))
@@ -61,7 +61,7 @@ class Challenge(DaemonThread):
         sig_hex = util.bytes_to_hex_str(self.key.sign(util.hex_str_to_rev_bytes(txid)))
 
         data = '{{"txid": "{}", "pubkey": "{}", "hash": "{}", "sig": "{}"}}'.\
-            format(self.args.bidtxid, self.args.pubkey, txid, sig_hex)
+            format(self.args.bidtxid, self.args.bidpubkey, txid, sig_hex)
         headers = {'content-type': 'application/json', 'Accept-Charset': 'UTF-8'}
         r = requests.post(self.url, data=data, headers=headers)
 

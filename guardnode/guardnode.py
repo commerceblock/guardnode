@@ -5,10 +5,11 @@ from .challenge import Challenge
 
 # This prefix corresponds to the Ocean Custom params
 # prefix. Replace with the argumetn below accordingly
-ADDRESS_PREFIX_DEFAULT = 235
+NODE_ADDR_PREFIX_DEFAULT = 235
+NODE_LOG_FILE_DEFAULT = "/home/bitcoin/.bitcoin/ocean_test/"
 
 # Default coordinator host address
-COORDINATOR_DEFAULT = "coordinator:9999"
+CHALLENGE_HOST_DEFAULT = "coordinator:9999"
 
 def parse_args():
     parser = ArgumentParser()
@@ -17,13 +18,14 @@ def parse_args():
     parser.add_argument('--rpcuser', required=False, default="", type=str, help="Client RPC username")
     parser.add_argument('--rpcpassword', required=False, default="", type=str, help="Client RPC password")
 
+    parser.add_argument('--nodeaddrprefix', required=False, type=int, default=NODE_ADDR_PREFIX_DEFAULT, help="Node P2PKH address prefix")
+    parser.add_argument('--nodelogfile', required=False, type=str, default=NODE_LOG_FILE_DEFAULT, help="Node log file destination")
+
     parser.add_argument('--bidtxid', required=True, type=str, help="Guardnode winning bid txid")
-    parser.add_argument('--pubkey', required=True, type=str, help="Guardnode public key")
+    parser.add_argument('--bidpubkey', required=True, type=str, help="Guardnode winning bid public key")
 
-    parser.add_argument('--coordinator', required=False, type=str, default=COORDINATOR_DEFAULT, help="Coordinator host address")
+    parser.add_argument('--challengehost', required=False, type=str, default=CHALLENGE_HOST_DEFAULT, help="Challenger host address")
     parser.add_argument('--challengeasset', required=True, type=str, help="Challenge asset hash")
-
-    parser.add_argument('--addressprefix', required=False, type=int, default=ADDRESS_PREFIX_DEFAULT, help="Chain P2PKH address prefix")
 
     return parser.parse_args()
 
