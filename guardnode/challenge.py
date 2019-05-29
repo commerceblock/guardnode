@@ -28,10 +28,8 @@ class Challenge(DaemonThread):
         self.ocean = connect(self.args)
         self.url = "http://{}/challengeproof".format(self.args.challengehost)
 
-        logging.basicConfig()
-        logging.getLogger("BitcoinRPC").setLevel(logging.INFO)
+        logging.getLogger("BitcoinRPC")
         self.logger = logging.getLogger("Challenge")
-        self.logger.setLevel(logging.INFO)
 
         # test valid asset hash
         util.assert_is_hash_string(self.args.challengeasset)

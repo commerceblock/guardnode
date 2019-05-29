@@ -45,8 +45,12 @@ def run_guardnode(args):
 
 def main():
     args = parse_args()
+    logging.basicConfig(
+        format='%(asctime)s %(name)s:%(levelname)s:%(process)d: %(message)s',
+        level=logging.INFO
+    )
     logger = logging.getLogger("Guardnode")
-    logger.setLevel(logging.INFO)
+
     challenge_handler = None
     alerts_handler = None
     try:

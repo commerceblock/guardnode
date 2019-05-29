@@ -18,7 +18,6 @@ class Alerts(DaemonThread):
     def __init__(self, args):
         super().__init__()
         self.logger = logging.getLogger("Alerts")
-        self.logger.setLevel(logging.INFO)
 
         self.file = open(args.nodelogfile)
         self.logger.info("Log file read: {}".format(args.nodelogfile))
