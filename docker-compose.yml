@@ -1,0 +1,27 @@
+version: '3.6'
+
+services:
+  guardnode:
+    image: 025ce86d62bd
+    volumes:
+      - ~/datadir:/home/root/ocean/datadir
+    command: >-
+        run_guardnode
+        --rpcuser user1
+        --rpcpassword password1
+        --bidpubkey 029aaa76fcf7b8012041c6b4375ad476408344d842000087aa93c5a33f65d50d92
+        --challengeasset 73be00507b15f79efccd0184b7ca8367372dfd5334ae8991a492f5f354073c88
+        --bidtxid $txid
+
+
+  ocean:
+    image: commerceblock/ocean:latest
+    volumes:
+      - ~/datadir:/home/root/ocean/datadir
+    command: >-
+      oceand
+        -rpcuser=user1
+        -rpcpassword=password1
+        -rpcport=18884
+        -listen=1
+        -regtest=1
