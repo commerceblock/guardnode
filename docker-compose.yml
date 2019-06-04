@@ -2,7 +2,7 @@ version: '3.6'
 
 services:
   guardnode:
-    image: 025ce86d62bd
+    image: commerceblock/guardnode:latest
     volumes:
       - ~/datadir:/home/root/ocean/datadir
     command: >-
