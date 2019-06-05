@@ -1,0 +1,39 @@
+version: '2'
+
+services:
+  guardnode:
+    image: commerceblock/guardnode:latest
+    volumes:
+      - ~/datadir:/home/root/ocean/datadir
+    command: >-
+        python3 -m guardnode
+        --rpcuser user1
+        --rpcpassword password1
+        --rpcconnect localhost
+        --rpcport 7043
+        --bidpubkey
+        --challengeasset
+        --challengehost
+        --nodeaddrprefix=255
+        --bidtxid
+        --nodelogfile /home/root/ocean/datadir
+  ocean:
+    image: commerceblock/ocean:latest
+    ports:
+      - "7042:7042"
+      - "7043:7043"
+    command: >-
+      oceand
+        -printtoall
+        -rpcuser=$${BITCOIN_RPC_USER:-ocean}
+        -rpcpassword=$${BITCOIN_RPC_PASSWORD:-oceanpass}
+        -rpcport=7043
+        -rpcallowip=0.0.0.0/0
+        -txindex=1
+        -listen=1
+        -connect=testnet.commerceblock.com:7043
+        -signblockscript=532103defe1c20d63ef16fbfd30559e1e17b9f2a97f630ea6a3981d56a21346b8998462102c1de26927d8b44b28e15c108330008feb94e45e740b23c2b7a772ad44e59a5af2103dfc4393d675a934d6c921b773f0d0b54d3b835c66b2c539f265be73aa668ca4f21036ace29068b92c979a59fce69753207e4959838b413c88542b9c826d31d828b87210283da7c77f63ad0397ee3d595d02abbae08737e9e6e68bf373a6300a29287259955ae
+        -con_mandatorycoinbase=76a914c3d93ca11be0f54fa3a66906b11be8d9219d1cbf88ac
+        -policycoins=2100000000000000
+        -permissioncoinsdestination=76a91463e68469383bd310a58b151cfad865e106d49c3d88ac
+        -challengecoinsdestination=76a91484c983373399c0684244e35ed2761ff71eb69ad988ac

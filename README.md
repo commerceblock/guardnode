@@ -34,3 +34,19 @@ To run a demo along with the [coordinator](https://github.com/commerceblock/coor
 ### Docs
 
 For more details check [readthedocs](https://commerceblock.readthedocs.io/en/latest/guardnode/index.html).
+
+### Running services with docker-compose
+
+To run all all services defined in a docker-compose.yml file run
+
+```docker-compose up```
+
+in the directory where the file is.
+
+To only run the guardnode service use:
+
+```docker-compose start guardnode```
+
+For just oceand use:
+
+```docker-compose start ocean```
