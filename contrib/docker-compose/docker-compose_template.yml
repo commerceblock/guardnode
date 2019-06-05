@@ -4,29 +4,31 @@ services:
   guardnode:
     image: commerceblock/guardnode:latest
     volumes:
-      - ~/datadir:/home/root/ocean/datadir
+      - ~/datadir:/home/bitcoin/.bitcoin
     command: >-
         python3 -m guardnode
-        --rpcuser user1
-        --rpcpassword password1
-        --rpcconnect localhost
+        --rpcuser user
+        --rpcpassword password
+        --rpcconnect ocean
         --rpcport 7043
         --bidpubkey
         --challengeasset
         --challengehost
-        --nodeaddrprefix=255
+        --nodeaddrprefix=235
         --bidtxid
-        --nodelogfile /home/root/ocean/datadir
+        --nodelogfile /home/bitcoin/.bitcoin
   ocean:
     image: commerceblock/ocean:latest
+    volumes:
+      - ~/datadir:/home/bitcoin/.bitcoin
     ports:
       - "7042:7042"
       - "7043:7043"
     command: >-
       oceand
         -printtoall
-        -rpcuser=$${BITCOIN_RPC_USER:-ocean}
-        -rpcpassword=$${BITCOIN_RPC_PASSWORD:-oceanpass}
+        -rpcuser=user
+        -rpcpassword=password
         -rpcport=7043
         -rpcallowip=0.0.0.0/0
         -txindex=1
