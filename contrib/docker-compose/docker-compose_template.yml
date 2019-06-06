@@ -7,8 +7,8 @@ services:
       - ~/datadir:/home/bitcoin/.bitcoin
     command: >-
         python3 -m guardnode
-        --rpcuser user
-        --rpcpassword password
+        --rpcuser ${OCEAN_RPC_USER:-ocean}
+        --rpcpassword ${OCEAN_RPC_PASSWORD:-password}
         --rpcconnect ocean
         --rpcport 7043
         --bidpubkey
@@ -27,8 +27,8 @@ services:
     command: >-
       oceand
         -printtoall
-        -rpcuser=user
-        -rpcpassword=password
+        -rpcuser=${OCEAN_RPC_USER:-ocean}
+        -rpcpassword=${OCEAN_RPC_PASSWORD:-password}
         -rpcport=7043
         -rpcallowip=0.0.0.0/0
         -txindex=1
