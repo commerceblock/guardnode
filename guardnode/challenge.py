@@ -26,7 +26,7 @@ class Challenge(DaemonThread):
         super().__init__()
         self.args = args
         self.ocean = connect(self.args)
-        self.url = "http://{}/challengeproof".format(self.args.challengehost)
+        self.url = "{}/challengeproof".format(self.args.challengehost)
 
         logging.getLogger("BitcoinRPC")
         self.logger = logging.getLogger("Challenge")

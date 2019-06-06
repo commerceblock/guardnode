@@ -12,7 +12,7 @@ NODE_ADDR_PREFIX_DEFAULT = 235
 NODE_LOG_FILE_DEFAULT = "/home/bitcoin/.bitcoin/ocean_test/"
 
 # Default coordinator host address
-CHALLENGE_HOST_DEFAULT = "coordinator:9999"
+CHALLENGE_HOST_DEFAULT = "http://coordinator:9999"
 
 def parse_args():
     parser = ArgumentParser()
