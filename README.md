@@ -45,8 +45,8 @@ in the directory where the file is.
 
 To only run the guardnode service use:
 
-```docker-compose start guardnode```
+```docker-compose up guardnode```
 
 For just oceand use:
 
-```docker-compose start ocean```
+```docker-compose up ocean```
