@@ -1,5 +1,4 @@
 version: '3.6'
-
 services:
   guardnode:
     image: commerceblock/guardnode:latest
@@ -14,9 +13,9 @@ services:
         --bidpubkey
         --challengeasset b8feee98a9ffdc4434269ab1c8ecb96fef920013e6eac0410ff1565373e0b658
         --challengehost https://coordinator.testnet.commerceblock.com:10005
-        --nodeaddrprefix=235
+        --nodeaddrprefix 235
         --bidtxid
-        --nodelogfile /home/bitcoin/.bitcoin
+        --nodelogfile /home/bitcoin/.bitcoin/ocean_test/debug.log
   ocean:
     image: commerceblock/ocean:latest
     volumes:
