@@ -31,22 +31,28 @@ To run a demo along with the [coordinator](https://github.com/commerceblock/coor
 ./run_guardnode --rpcuser user1 --rpcpassword password1 --bidpubkey 029aaa76fcf7b8012041c6b4375ad476408344d842000087aa93c5a33f65d50d92 --challengeasset 73be00507b15f79efccd0184b7ca8367372dfd5334ae8991a492f5f354073c88 --bidtxid $txid
 ```
 
-### Docs
-
-For more details check [readthedocs](https://commerceblock.readthedocs.io/en/latest/guardnode/index.html).
-
 ### Running services with docker-compose
 
 To run all all services defined in a docker-compose.yml file run
 
-```docker-compose up```
+`docker-compose up`
 
 in the directory where the file is.
 
 To only run the guardnode service use:
 
-```docker-compose up guardnode```
+`docker-compose up -d guardnode`
+
+To follow the logs use:
+
+`docker-compose logs --follow guardnode`
 
 For just oceand use:
 
-```docker-compose up ocean```
+`docker-compose up -d ocean`
+
+For different docker compose files names specify the filename with the `-f` flag.
+
+### Docs
+
+For more details check the [guardnode guide](https://commerceblock.readthedocs.io/en/latest/guardnode-guide/index.html).
