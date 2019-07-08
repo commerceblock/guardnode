@@ -3,7 +3,7 @@ services:
   guardnode:
     image: commerceblock/guardnode:latest
     volumes:
-      - ~/datadir:/home/bitcoin/.bitcoin
+      - ../datadir:/home/bitcoin/.bitcoin
     command: >-
         python3 -m guardnode
         --rpcuser ${OCEAN_RPC_USER:-ocean}
@@ -19,7 +19,7 @@ services:
   ocean:
     image: commerceblock/ocean:latest
     volumes:
-      - ~/datadir:/home/bitcoin/.bitcoin
+      - ../datadir:/home/bitcoin/.bitcoin
     ports:
       - "7042:7042"
       - "7043:7043"
