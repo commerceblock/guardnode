@@ -44,7 +44,7 @@ Start ocean node:
 
 ```console
 docker-compose \
-    -p ocean
+    -p ocean \
     -f contrib/docker-compose/cb-guardnode-testnet.yml \
     up -d ocean
 ```
@@ -53,7 +53,7 @@ Start guardnode:
 
 ```console
 docker-compose \
-    -p ocean
+    -p ocean \
     -f contrib/docker-compose/cb-guardnode-testnet.yml \
     up -d guardnode
 ```
@@ -62,7 +62,7 @@ Check status:
 
 ```console
 docker-compose \
-    -p ocean
+    -p ocean \
     -f contrib/docker-compose/cb-guardnode-testnet.yml \
     ps
 ```
@@ -71,7 +71,7 @@ Check ocean logs:
 
 ```console
 docker-compose \
-    -p ocean
+    -p ocean \
     -f contrib/docker-compose/cb-guardnode-testnet.yml \
     logs --follow ocean
 ```
@@ -80,7 +80,7 @@ Check guarnode logs:
 
 ```console
 docker-compose \
-    -p ocean
+    -p ocean \
     -f contrib/docker-compose/cb-guardnode-testnet.yml \
     logs --follow guardnode
 ```
