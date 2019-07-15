@@ -33,25 +33,52 @@ To run a demo along with the [coordinator](https://github.com/commerceblock/coor
 
 ### Running services with docker-compose
 
-To run all all services defined in a docker-compose.yml file run
+Clone data directories
 
-`docker-compose up`
+```console
+git clone https://github.com/commerceblock/guardnode.git \
+ && cd guardnode
+```
 
-in the directory where the file is.
+Start ocean node:
 
-To only run the guardnode service use:
+```console
+docker-compose \
+    -f contrib/docker-compose/cb-guardnode-testnet.yml \
+    up -d ocean
+```
+    
+Start guardnode:
 
-`docker-compose up -d guardnode`
+```console
+docker-compose \
+    -f contrib/docker-compose/cb-guardnode-testnet.yml \
+    up -d guardnode
+```
 
-To follow the logs use:
+Check status:
 
-`docker-compose logs --follow guardnode`
+```console
+docker-compose \
+    -f contrib/docker-compose/cb-guardnode-testnet.yml \
+    ps
+```
+    
+Check ocean logs:
 
-For just oceand use:
+```console
+docker-compose \
+    -f contrib/docker-compose/cb-guardnode-testnet.yml \
+    logs --follow ocean
+```
 
-`docker-compose up -d ocean`
+Check guarnode logs:
 
-For different docker compose files names specify the filename with the `-f` flag.
+```console
+docker-compose \
+    -f contrib/docker-compose/cb-guardnode-testnet.yml \
+    logs --follow guardnode
+```
 
 ### Docs
 
