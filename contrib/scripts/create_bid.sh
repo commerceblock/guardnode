@@ -58,11 +58,11 @@ fee=$3
 
 # Calculate current auction price
 let t=$currentblockheight-`echo $request | jq '.confirmedBlockHeight'`
-bid=$(echo "scale=3; `echo $request | jq '.startPrice'`*(1+$t)/(1+$t+($t^3/`echo $request | jq '.decayConst'`))" | bc)
+bid=$(echo "scale=8; `echo $request | jq '.startPrice'`*(1+$t)/(1+$t+($t^3/`echo $request | jq '.decayConst'`))" | bc)
 if [[ $4 =~ ^[+-]?[0-9]+\.?[0-9]*$ ]]; then # maxBid existence and type check
     maxbid=$4
 elif [ ! $4 = false ]; then
-    printf "Input parameter error: Invalie maxBid value given.\n"
+    printf "Input parameter error: Invalid maxBid value given.\n"
     exit
 fi
 if (( $(echo "$bid > $maxbid" | bc -l) )); then
@@ -77,7 +77,6 @@ checkLockTime () {
     return 1
 }
 calculateChange () {  # receive value of unspent as arg
-    # Calculate change from unspent output
     change=$(echo "$1 - $fee - $bid" | bc)
     if [[ $change < 0 ]]; then
         return
@@ -109,33 +108,31 @@ then
 else
     unspentlist=`ocl listunspent '[1, 9999999, [], true, "CBT"]' | jq -c '.[]'`
     # Try find TX_LOCKED_MULTISIG to spend from first
-    let i=0
     for unspent in $unspentlist; do
         if [ `echo $unspent | jq ".solvable"` = "false" ]; then
             value=`echo $unspent | jq -r ".amount"`
             change=$(calculateChange "$value")
-            if [ ! -z $change ]; then
+            txid=`echo $unspent | jq -r ".txid"`
+            vout=`echo $unspent | jq -r ".vout"`
+            tx=`ocl decoderawtransaction $(ocl getrawtransaction $txid | jq -r '.')`
+            if [ ! -z $change ] && checkLockTime "$tx"; then
                 assethash=`echo $unspent | jq -r ".asset"`
-                txid=`echo $unspent | jq -r ".txid"`
-                vout=`echo $unspent | jq -r ".vout"`
                 break
             fi
-            ((i++))
         fi
     done
     # Try find standard domain asset unpsent output to fund bid
-    if [ -z $txid ]; then
-        let i=0
+    if [ -z $assethash ]; then
         for unspent in $unspentlist; do
             value=`echo $unspent | jq -r ".amount"`
             change=$(calculateChange "$value")
-            if [ ! -z $change ]; then
+            txid=`echo $unspent | jq -r ".txid"`
+            vout=`echo $unspent | jq -r ".vout"`
+            tx=`ocl decoderawtransaction $(ocl getrawtransaction $txid | jq -r '.')`
+            if [ ! -z $change ] && checkLockTime "$tx"; then
                 assethash=`echo $unspent | jq -r ".asset"`
-                txid=`echo $unspent | jq -r ".txid"`
-                vout=`echo $unspent | jq -r ".vout"`
                 break
             fi
-            ((i++))
         done
     fi
     if [ -z $change ]; then
