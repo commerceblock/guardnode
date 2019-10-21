@@ -42,7 +42,18 @@ then
     exit
 fi
 
-currentblockheight=`ocl getblockchaininfo | jq ".blocks"`
+# Get current auction price
+bid=`echo $request | jq ".auctionPrice"`
+if [[ $4 =~ ^[+-]?[0-9]+\.?[0-9]*$ ]]; then # maxBid existence and type check
+maxbid=$4
+elif [ ! $4 = false ]; then
+    printf "Input parameter error: Invalid maxBid value given.\n"
+    exit
+fi
+if (( $(echo "$bid > $maxbid" | bc -l) )); then
+    printf "Max bid error: Current bid price larger than maxBid.\n"
+    exit
+fi
 
 # Address tokens will be locked in
 addr=`ocl getnewaddress | jq -r '.'`
@@ -56,20 +67,7 @@ feepub=$2
 # Fee value
 fee=$3
 
-# Calculate current auction price
-let t=$currentblockheight-`echo $request | jq '.confirmedBlockHeight'`
-bid=$(echo "scale=8; `echo $request | jq '.startPrice'`*(1+$t)/(1+$t+($t^3/`echo $request | jq '.decayConst'`))" | bc)
-if [[ $4 =~ ^[+-]?[0-9]+\.?[0-9]*$ ]]; then # maxBid existence and type check
-    maxbid=$4
-elif [ ! $4 = false ]; then
-    printf "Input parameter error: Invalid maxBid value given.\n"
-    exit
-fi
-if (( $(echo "$bid > $maxbid" | bc -l) )); then
-    printf "Max bid error: Current bid price larger than maxBid.\n"
-    exit
-fi
-
+currentblockheight=`ocl getblockchaininfo | jq ".blocks"`
 checkLockTime () {
     if [[ $currentblockheight -gt `echo $1 | jq -r '.locktime'` ]]; then
         return 0
