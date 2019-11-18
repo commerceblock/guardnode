@@ -11,7 +11,6 @@ services:
         --rpcconnect ocean
         --rpcport 7043
         --bidpubkey
-        --challengeasset b8feee98a9ffdc4434269ab1c8ecb96fef920013e6eac0410ff1565373e0b658
         --challengehost https://coordinator.testnet.commerceblock.com:10005
         --nodeaddrprefix 235
         --bidtxid
