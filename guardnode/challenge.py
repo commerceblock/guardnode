@@ -26,7 +26,8 @@ def get_challenge_asset(ocean):
     for asset in issuances:
         if asset['assetlabel'] == "CHALLENGE":
             return asset['asset']
-    return False
+    self.logger.error("No Challenge asset found in client chain")
+    sys.exit(1)
 
 class Challenge(DaemonThread):
     def __init__(self, args):
@@ -40,9 +41,6 @@ class Challenge(DaemonThread):
 
         # get challenge asset hash
         self.args.challengeasset = get_challenge_asset(self.ocean)
-        if self.args.challengeasset == False:
-            self.logger.error("No Challenge asset found in client chain")
-            sys.exit(1)
         self.rev_challengeasset = util.hex_str_rev_hex_str(self.args.challengeasset)
 
         # test valid bid txid
