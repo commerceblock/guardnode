@@ -28,7 +28,6 @@ def parse_args():
     parser.add_argument('--bidpubkey', required=True, type=str, help="Guardnode winning bid public key")
 
     parser.add_argument('--challengehost', required=False, type=str, default=CHALLENGE_HOST_DEFAULT, help="Challenger host address")
-    parser.add_argument('--challengeasset', required=True, type=str, help="Challenge asset hash")
 
     return parser.parse_args()
 

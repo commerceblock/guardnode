@@ -21,6 +21,14 @@ def asset_in_block(ocean, asset, block_height):
                 return txid
     return None
 
+def get_challenge_asset(ocean):
+    issuances = ocean.listissuances()
+    for asset in issuances:
+        if asset['assetlabel'] == "CHALLENGE":
+            return asset['asset']
+    self.logger.error("No Challenge asset found in client chain")
+    sys.exit(1)
+
 class Challenge(DaemonThread):
     def __init__(self, args):
         super().__init__()
@@ -31,12 +39,9 @@ class Challenge(DaemonThread):
         logging.getLogger("BitcoinRPC")
         self.logger = logging.getLogger("Challenge")
 
-        # test valid asset hash
-        util.assert_is_hash_string(self.args.challengeasset)
+        # get challenge asset hash
+        self.args.challengeasset = get_challenge_asset(self.ocean)
         self.rev_challengeasset = util.hex_str_rev_hex_str(self.args.challengeasset)
-        if asset_in_block(self.ocean, self.rev_challengeasset, 0) == None:
-            self.logger.error("Asset {} not found in genesis block".format(self.args.challengeasset))
-            sys.exit(1)
 
         # test valid bid txid
         util.assert_is_hash_string(self.args.bidtxid)
@@ -61,7 +66,12 @@ class Challenge(DaemonThread):
         data = '{{"txid": "{}", "pubkey": "{}", "hash": "{}", "sig": "{}"}}'.\
             format(self.args.bidtxid, self.args.bidpubkey, txid, sig_hex)
         headers = {'content-type': 'application/json', 'Accept-Charset': 'UTF-8'}
-        r = requests.post(self.url, data=data, headers=headers)
+        try:
+            r = requests.post(self.url, data=data, headers=headers)
+        except Exception as e:
+            self.logger.error(e)
+            self.logger.error("Could not connect to coordinator to send response data:\n{}".format(data))
+            return
 
         self.logger.info("response sent\nsignature:\n{}\ntxid:\n{}".format(sig_hex, txid))
         if r.status_code != 200:
