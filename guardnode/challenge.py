@@ -72,7 +72,7 @@ class Challenge(DaemonThread):
             r = requests.post(self.url, data=data, headers=headers)
         except Exception as e:
             self.logger.error(e)
-            self.logger.error("Could not connect to coordinator to send bid tx data:\n{}".format(data))
+            self.logger.error("Could not connect to coordinator to send response data:\n{}".format(data))
             return
 
         self.logger.info("response sent\nsignature:\n{}\ntxid:\n{}".format(sig_hex, txid))
