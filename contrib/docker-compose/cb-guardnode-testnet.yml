@@ -12,7 +12,6 @@ services:
         --rpcport 7043
         --bidpubkey
         --challengehost https://coordinator.testnet.commerceblock.com:10005
-        --nodeaddrprefix 235
         --bidtxid
         --nodelogfile /home/bitcoin/.bitcoin/ocean_test/debug.log
   ocean:

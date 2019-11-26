@@ -18,7 +18,6 @@ Guardnode daemon responding to client chain coordinator challenges and generatin
 - `--rpcport`: Client RPC port
 - `--rpcuser`: Client RPC username
 - `--rpcpassword`: Client RPC password
-- `--nodeaddrprefix`: Node P2PKH address prefix
 - `--nodelogfile`: Node log file destination
 - `--bidtxid`: Guardnode winning bid txid
 - `--bidpubkey`: Guardnode winning bid public key

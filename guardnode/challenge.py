@@ -43,6 +43,12 @@ class Challenge(DaemonThread):
         self.args.challengeasset = get_challenge_asset(self.ocean)
         self.rev_challengeasset = util.hex_str_rev_hex_str(self.args.challengeasset)
 
+        # get address prefix
+        self.args.nodeaddrprefix = self.ocean.getsidechaininfo()["addr_prefixes"]["PUBKEY_ADDRESS"]
+        if not hasattr(self.args, 'nodeaddrprefix'):
+            self.logger.error("Error getting address prefix - check node version")
+            sys.exit(1)
+
         # test valid bid txid
         util.assert_is_hash_string(self.args.bidtxid)
 

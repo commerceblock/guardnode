@@ -6,9 +6,6 @@ from argparse import ArgumentParser
 from .challenge import Challenge
 from .alerts import Alerts
 
-# This prefix corresponds to the Ocean Custom params
-# prefix. Replace with the argumetn below accordingly
-NODE_ADDR_PREFIX_DEFAULT = 235
 NODE_LOG_FILE_DEFAULT = "/home/bitcoin/.bitcoin/ocean_test/"
 
 # Default coordinator host address
@@ -21,7 +18,6 @@ def parse_args():
     parser.add_argument('--rpcuser', required=False, default="", type=str, help="Client RPC username")
     parser.add_argument('--rpcpassword', required=False, default="", type=str, help="Client RPC password")
 
-    parser.add_argument('--nodeaddrprefix', required=False, type=int, default=NODE_ADDR_PREFIX_DEFAULT, help="Node P2PKH address prefix")
     parser.add_argument('--nodelogfile', required=False, type=str, default=NODE_LOG_FILE_DEFAULT, help="Node log file destination")
 
     parser.add_argument('--bidtxid', required=True, type=str, help="Guardnode winning bid txid")
@@ -36,7 +32,7 @@ def run_guardnode(args):
     challenge = Challenge(args)
     challenge.start()
 
-    # spawn allerts handling in new thread
+    # spawn alert handling in new thread
     alerts = Alerts(args)
     alerts.start()
 
