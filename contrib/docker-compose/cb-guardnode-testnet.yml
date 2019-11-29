@@ -15,27 +15,36 @@ services:
         --bidlimit 1000
         --challengehost https://coordinator.testnet.commerceblock.com:10005
         --nodelogfile /home/bitcoin/.bitcoin/ocean_test/debug.log
+    depends_on:
+      - ocean
   ocean:
     image: commerceblock/ocean:latest
     volumes:
       - ../datadir:/home/bitcoin/.bitcoin
     ports:
+      - "8332:8332"
       - "7042:7042"
-      - "7043:7043"
     command: >-
       oceand
-        -printtoall
+        -printtoconsole
+        -chain=ocean_main
         -rpcuser=${OCEAN_RPC_USER:-ocean}
-        -rpcpassword=${OCEAN_RPC_PASSWORD:-password}
-        -rpcport=7043
+        -rpcpassword=${OCEAN_RPC_PASSWORD:-oceanpass}
+        -rpcport=8332
         -rpcallowip=0.0.0.0/0
+        -addnode=testnet.commerceblock.com
         -txindex=1
         -listen=1
-        -connect=testnet.commerceblock.com:7043
-        -initialfreecoins=2100000000000000
-        -initialfreecoinsdestination=76a9149087caa47464af463a46d558df3c3cf9cfd9645e88ac
-        -signblockscript=532103defe1c20d63ef16fbfd30559e1e17b9f2a97f630ea6a3981d56a21346b8998462102c1de26927d8b44b28e15c108330008feb94e45e740b23c2b7a772ad44e59a5af2103dfc4393d675a934d6c921b773f0d0b54d3b835c66b2c539f265be73aa668ca4f21036ace29068b92c979a59fce69753207e4959838b413c88542b9c826d31d828b87210283da7c77f63ad0397ee3d595d02abbae08737e9e6e68bf373a6300a29287259955ae
-        -con_mandatorycoinbase=76a914c3d93ca11be0f54fa3a66906b11be8d9219d1cbf88ac
+        -signblockscript=5321025066f00e5333644b4c8b148432402641993833ac654fb2c79ff9923e6d40abbf210378673a11067480b5a99f311c9a0141489528ff982d2186c59482274a6177b6482102b332a56cf2f1e09154229784052acb05483a35d339560e071f93889f231d589d2103acd8898cab53969c5a7759ebd1daa5d073cf8fae50472761aa9d48e96c7bafd42102971e54c18ffcf5ca9edbafde7628164bfd9084b91b86552b54bb2375b18d6d9055ae
+        -con_mandatorycoinbase=76a9143e6b9f66eeb139c693cc8148285133a5ea96f66488ac
+        -initialfreecoins=0
         -policycoins=2100000000000000
-        -permissioncoinsdestination=76a91463e68469383bd310a58b151cfad865e106d49c3d88ac
-        -challengecoinsdestination=76a91484c983373399c0684244e35ed2761ff71eb69ad988ac
+        -permissioncoinsdestination=76a9149b45b5f6cfbf562e68c5af288dbafe1ac25605a388ac
+        -challengecoinsdestination=76a9145a0f7488e32c4c886773d0198448b7b03783e2b188ac
+        -parentgenesisblockhash=d4e56740f876aef8c010b86a40d5f56745a118d0906a34e69aec8c0db1cb8fa3
+        -parentcontract=076c97e1c869072ee22f8c91978c99b4bcb02591
+        -fedpegaddress=9178afdf2fc2cbdde30290c0b49f040ff804e06c
+        -peginconfirmationdepth=10
+        -contractintx=1
+        -genesistimestamp=1568700000
+        -attestationhash=862244710b778def8209ca90be7d697c686d595da4b90acdf6d2f844da1bfd28
