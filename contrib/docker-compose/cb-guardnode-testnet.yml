@@ -7,12 +7,13 @@ services:
     command: >-
         python3 -m guardnode
         --rpcuser ${OCEAN_RPC_USER:-ocean}
-        --rpcpassword ${OCEAN_RPC_PASSWORD:-password}
-        --rpcconnect ocean
-        --rpcport 7043
-        --bidpubkey
+        --rpcpass ${OCEAN_RPC_PASSWORD:-password}
+        --rpchost ocean:7043
+        --servicerpcuser ${OCEAN_RPC_USER:-ocean}
+        --servicerpcpass ${OCEAN_RPC_PASSWORD:-password}
+        --servicerpchost ocean:7043
+        --bidlimit 1000
         --challengehost https://coordinator.testnet.commerceblock.com:10005
-        --bidtxid
         --nodelogfile /home/bitcoin/.bitcoin/ocean_test/debug.log
   ocean:
     image: commerceblock/ocean:latest

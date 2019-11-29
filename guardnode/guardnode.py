@@ -6,22 +6,31 @@ from argparse import ArgumentParser
 from .challenge import Challenge
 from .alerts import Alerts
 
-NODE_LOG_FILE_DEFAULT = "/home/bitcoin/.bitcoin/ocean_test/"
+# Default debug log file location for ocean nodes in linux machines
+NODE_LOG_FILE_DEFAULT = "/home/bitcoin/.bitcoin/ocean_test/debug.log"
 
 # Default coordinator host address
 CHALLENGE_HOST_DEFAULT = "http://coordinator:9999"
 
+# Default service block time - can be overriden for testing
+SERVICE_BLOCK_TIME_DEFAULT = 60
+
 def parse_args():
     parser = ArgumentParser()
-    parser.add_argument('--rpcconnect', required=False, default="127.0.0.1",type=str, help="Client RPC host")
-    parser.add_argument('--rpcport', required=False, default="5555", type=str, help="Client RPC port")
+    parser.add_argument('--rpchost', required=False, default="127.0.0.1:5555",type=str, help="Client RPC host")
     parser.add_argument('--rpcuser', required=False, default="", type=str, help="Client RPC username")
-    parser.add_argument('--rpcpassword', required=False, default="", type=str, help="Client RPC password")
+    parser.add_argument('--rpcpass', required=False, default="", type=str, help="Client RPC password")
+
+    parser.add_argument('--servicerpchost', required=False, default="127.0.0.1:6666",type=str, help="Service RPC host")
+    parser.add_argument('--servicerpcuser', required=False, default="", type=str, help="Service RPC username")
+    parser.add_argument('--servicerpcpass', required=False, default="", type=str, help="Service RPC password")
+    parser.add_argument('--serviceblocktime', required=False, default=SERVICE_BLOCK_TIME_DEFAULT, type=int, help="Service block time")
 
     parser.add_argument('--nodelogfile', required=False, type=str, default=NODE_LOG_FILE_DEFAULT, help="Node log file destination")
 
-    parser.add_argument('--bidtxid', required=True, type=str, help="Guardnode winning bid txid")
-    parser.add_argument('--bidpubkey', required=True, type=str, help="Guardnode winning bid public key")
+    parser.add_argument('--bidpubkey', required=False, type=str, help="Guardnode winning bid public key")
+    parser.add_argument('--bidlimit', required=False, type=float, default="0.0", help="Guardnode upper bid limit")
+    parser.add_argument('--bidfee', required=False, type=float, default=None, help="Guardnode bid fee")
 
     parser.add_argument('--challengehost', required=False, type=str, default=CHALLENGE_HOST_DEFAULT, help="Challenger host address")
 
