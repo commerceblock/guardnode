@@ -15,7 +15,9 @@ class BidHandler():
         self.logger = logging.getLogger("Bid")
 
     def do_request_bid(self, request):
-        if request["auctionPrice"] > self.bid_limit:
+        if request["startBlockHeight"] <= self.service_ocean.getblockcount():
+            self.logger.warn("Too late to bid for request. Service already started")
+        elif request["auctionPrice"] > self.bid_limit:
             self.logger.warn("Auction price {} too high for guardnode bid limit {}".format(request["auctionPrice"], self.bid_limit))
         else:
             # do bidding
