@@ -14,14 +14,18 @@ Guardnode daemon responding to client chain coordinator challenges and generatin
 
 ### Configuration arguments
 
-- `--rpcconnect`: Client RPC host
-- `--rpcport`: Client RPC port
+- `--rpchost`: Client RPC host
 - `--rpcuser`: Client RPC username
-- `--rpcpassword`: Client RPC password
+- `--rpcpass`: Client RPC password
+- `--servicerpchost`: Service RPC host
+- `--servicerpcuser`: Service RPC username
+- `--servicerpcpass`: Service RPC password
+- `--serviceblocktime`: Service block time (Optional, defaults to 60)
 - `--nodelogfile`: Node log file destination
-- `--bidtxid`: Guardnode winning bid txid
-- `--bidpubkey`: Guardnode winning bid public key
 - `--challengehost`: Challenge host address
+- `--bidlimit`: Guardnode upper bid limit
+- `--bidfee`: Guardnode bid fee (Optional, defaults to 0.0001)
+- `--bidpubkey`: Guardnode winning bid public key (Optional, daemon will generate one)
 
 
 ### Running services with docker-compose
