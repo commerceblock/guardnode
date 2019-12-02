@@ -22,21 +22,32 @@ class BidHandler():
         else:
             # do bidding
             list_unspent = self.service_ocean.listunspent(1, 9999999, [], True, "CBT")
+            # First try find previous TX_LOCKED_MULTISIG output with enough funds
+            bid_inputs = {}
             for unspent in list_unspent:
-                if unspent["amount"] >= request["auctionPrice"]:
-                    bid_inputs = {}
+                if unspent["solvable"] == "false" and unspent["amount"] >= request["auctionPrice"]:
                     bid_inputs["txid"] = unspent["txid"]
                     bid_inputs["vout"] = unspent["vout"]
-                    bid_outputs = {}
-                    bid_outputs["endBlockHeight"] = request["endBlockHeight"]
-                    bid_outputs["requestTxid"] = request["txid"]
-                    bid_outputs["pubkey"] = self.service_ocean.validateaddress(self.service_ocean.getnewaddress())["pubkey"]
-                    bid_outputs["feePubkey"] = self.client_fee_pubkey
-                    bid_outputs["value"] = request["auctionPrice"]
-                    bid_outputs["change"] = unspent["amount"] - request["auctionPrice"] - self.bid_fee
-                    bid_outputs["changeAddress"] = self.service_ocean.getnewaddress()
-                    bid_outputs["fee"] = self.bid_fee
-                    raw_bid_tx = self.service_ocean.createrawbidtx([bid_inputs], bid_outputs)
-                    signed_raw_bid_tx = self.service_ocean.signrawtransaction(raw_bid_tx)
-                    return self.service_ocean.sendrawtransaction(signed_raw_bid_tx["hex"])
-            self.logger.warn("No unspent with enough CBT to match the auction price {}".format(request["auctionPrice"]))
+                    break
+            # Otherwise use any other output with enough funds
+            if not len(bid_inputs):
+                for unspent in list_unspent:
+                    if unspent["amount"] >= request["auctionPrice"]:
+                        bid_inputs["txid"] = unspent["txid"]
+                        bid_inputs["vout"] = unspent["vout"]
+                        break
+            if not len(bid_inputs):
+                self.logger.warn("No unspent with enough CBT to match the auction price {}".format(request["auctionPrice"]))
+                return
+            bid_outputs = {}
+            bid_outputs["endBlockHeight"] = request["endBlockHeight"]
+            bid_outputs["requestTxid"] = request["txid"]
+            bid_outputs["pubkey"] = self.service_ocean.validateaddress(self.service_ocean.getnewaddress())["pubkey"]
+            bid_outputs["feePubkey"] = self.client_fee_pubkey
+            bid_outputs["value"] = request["auctionPrice"]
+            bid_outputs["change"] = unspent["amount"] - request["auctionPrice"] - self.bid_fee
+            bid_outputs["changeAddress"] = self.service_ocean.getnewaddress()
+            bid_outputs["fee"] = self.bid_fee
+            raw_bid_tx = self.service_ocean.createrawbidtx([bid_inputs], bid_outputs)
+            signed_raw_bid_tx = self.service_ocean.signrawtransaction(raw_bid_tx)
+            return self.service_ocean.sendrawtransaction(signed_raw_bid_tx["hex"])
