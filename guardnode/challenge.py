@@ -47,7 +47,10 @@ class Challenge(DaemonThread):
         self.args.challengeasset = get_challenge_asset(self.ocean)
         self.rev_challengeasset = util.hex_str_rev_hex_str(self.args.challengeasset)
 
+        # If not set then generate fresh
+        self.client_fee_pubkey = None
         if args.bidpubkey is not None:
+            self.genfeepubkeys = False;
             self.client_fee_pubkey = args.bidpubkey
             # get address prefix
             self.args.nodeaddrprefix = self.ocean.getsidechaininfo()["addr_prefixes"]["PUBKEY_ADDRESS"]
@@ -56,26 +59,39 @@ class Challenge(DaemonThread):
                 sys.exit(1)
 
             # test valid key and imported
-            self.address = address.key_to_p2pkh_version(self.client_fee_pubkey, args.nodeaddrprefix)
-            validate = self.ocean.validateaddress(self.address)
+            addr = address.key_to_p2pkh_version(self.client_fee_pubkey, args.nodeaddrprefix)
+            validate = self.ocean.validateaddress(addr)
             if validate['ismine'] == False:
-                self.logger.error("Key for address {} is missing from the wallet".format(self.address))
+                self.logger.error("Key for address {} is missing from the wallet".format(addr))
                 sys.exit(1)
-        else: # if not set then generate one
-            self.address = self.ocean.getnewaddress()
-            self.client_fee_pubkey = self.ocean.validateaddress(self.address)["pubkey"]
 
-        self.logger.info("Fee address: {} and pubkey: {}".format(self.address, self.client_fee_pubkey))
+            # set self.key for signing
+            self.set_key(addr)
+
+            self.logger.info("Fee address: {} and pubkey: {}".format(address, self.client_fee_pubkey))
+        else:
+            self.genfeepubkeys = True;
+            self.logger.info("Fee pubkey will be freshly generated each bid")
 
         # Init bid handler
         self.bidhandler = BidHandler(self.service_ocean, self.client_fee_pubkey, args.bidlimit, args.bidfee)
 
-        # set key for signing
-        priv = self.ocean.dumpprivkey(self.address)
+    def set_key(self, addr):
+        self.logger.info("set_key address {}".format(addr))
+        priv = self.service_ocean.dumpprivkey(addr)
         decoded = base58.b58decode(priv)[1:-5] # check for compressed or not
         self.key = key.CECKey()
         self.key.set_secretbytes(decoded)
         self.key.set_compressed(True)
+
+    # gen new feepubkey and set self.key
+    def gen_feepubkey(self):
+        address = self.service_ocean.getnewaddress()
+        self.logger.info("address: {}".format(address))
+        self.key = self.set_key(address)
+        self.client_fee_pubkey = self.service_ocean.validateaddress(address)["pubkey"]
+        self.logger.info("NEW PUB KEY: {}".format(self.client_fee_pubkey))
+        self.logger.info("NEW priv KEY: {}".format(self.key))
 
     def respond(self, bid_txid, txid):
         sig_hex = util.bytes_to_hex_str(self.key.sign(util.hex_str_to_rev_bytes(txid)))
@@ -101,6 +117,10 @@ class Challenge(DaemonThread):
             if len(requests) > 0:
                 request = requests[0]
                 self.logger.info("Found request: {}".format(request))
+                # gen pub key for each request
+                self.logger.info("genfeepubkeys {}".format(self.genfeepubkeys))
+                if self.genfeepubkeys:
+                    self.gen_feepubkey()
                 bid_txid = self.bidhandler.do_request_bid(request)
                 if bid_txid is not None:
                     self.logger.info("Bid {} submitted".format(bid_txid))
