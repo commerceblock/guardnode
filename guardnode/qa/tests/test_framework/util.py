@@ -203,7 +203,7 @@ def initialize_datadir(dirname, n):
     return datadir
 
 def rpc_auth_pair(n):
-    return 'rpcuser💻' + str(n), 'rpcpass🔑' + str(n)
+    return 'rpcuser' + str(n), 'rpcpass' + str(n)
 
 def rpc_url(i, rpchost=None):
     rpc_u, rpc_p = rpc_auth_pair(i)
@@ -410,6 +410,33 @@ def connect_nodes(from_connection, node_num):
 def connect_nodes_bi(nodes, a, b):
     connect_nodes(nodes[a], b)
     connect_nodes(nodes[b], a)
+
+def start_guardnode():
+    """
+    Start a guardnode and return its subprocess
+    """
+
+    entry = os.getenv("RUNGUARDNODE")
+    # args = [ entry ]
+    rpc_u, rpc_p = rpc_auth_pair(0)
+    port = rpc_port(0)
+    args = [ entry, \
+        "--rpchost", "127.0.0.1:"+str(port), "--rpcuser", rpc_u, "--rpcpass", rpc_p, \
+        "--servicerpchost", "127.0.0.1:"+str(port), "--servicerpcuser", rpc_u, "--servicerpcpass", rpc_p  ]
+    print(args)
+    guardnode = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=1)
+    outs, errs = guardnode.communicate()
+    print(outs)
+    print(errs)
+
+    # print guardnode.stdout.readline(), # read the first line
+
+    # print p.communicate("n\n")[0], # signal the child to exit,
+                               # read the rest of the output,
+
+
+    return guardnode
+
 
 def find_output(node, txid, amount):
     """

@@ -1,0 +1,147 @@
+[1mdiff --git a/guardnode/qa/pull-tester/tests.py b/guardnode/qa/pull-tester/tests.py[m
+[1mindex 47793c8..61cfbfe 100755[m
+[1m--- a/guardnode/qa/pull-tester/tests.py[m
+[1m+++ b/guardnode/qa/pull-tester/tests.py[m
+[36m@@ -38,7 +38,7 @@[m [mif os.name == 'posix':[m
+     # terminal via ANSI escape sequences:[m
+     BOLD = ('\033[0m', '\033[1m')[m
+ [m
+[31m-TESTS_DIR = '/home/tomos/guardnode/guardnode/qa/tests/'[m
+[32m+[m[32mTESTS_DIR = GUARDNODEDIR + '/guardnode/qa/tests/'[m
+ [m
+ #If imported values are not defined then set to zero (or disabled)[m
+ if 'ENABLE_WALLET' not in vars():[m
+[36m@@ -78,6 +78,9 @@[m [mfor arg in sys.argv[1:]:[m
+ if "BITCOIND" not in os.environ:[m
+     os.environ["OCEAND"] = BUILDDIR+ '/src/oceand' + EXEEXT[m
+ [m
+[32m+[m[32mif "RUNGARDNODE" not in os.environ:[m
+[32m+[m[32m    os.environ["RUNGUARDNODE"] = GUARDNODEDIR+ '/run_guardnode'[m
+[32m+[m
+ if EXEEXT == ".exe" and "-win" not in opts:[m
+     # https://github.com/bitcoin/bitcoin/commit/d52802551752140cf41f0d9a225a43e84404d3e9[m
+     # https://github.com/bitcoin/bitcoin/pull/5677#issuecomment-136646964[m
+[1mdiff --git a/guardnode/qa/pull-tester/tests_config.py b/guardnode/qa/pull-tester/tests_config.py[m
+[1mold mode 100755[m
+[1mnew mode 100644[m
+[1mindex d6cc288..d6a0e73[m
+[1m--- a/guardnode/qa/pull-tester/tests_config.py[m
+[1m+++ b/guardnode/qa/pull-tester/tests_config.py[m
+[36m@@ -5,6 +5,7 @@[m
+ [m
+ SRCDIR="/home/tomos/ocean"[m
+ BUILDDIR="/home/tomos/ocean"[m
+[32m+[m[32mGUARDNODEDIR="/home/tomos/guardnode"[m
+ EXEEXT=""[m
+ [m
+ # These will turn into comments if they were disabled when configuring.[m
+[1mdiff --git a/guardnode/qa/pull-tester/tests_config.py.in b/guardnode/qa/pull-tester/tests_config.py.in[m
+[1mindex a0d0a3d..8a5af41 100644[m
+[1m--- a/guardnode/qa/pull-tester/tests_config.py.in[m
+[1m+++ b/guardnode/qa/pull-tester/tests_config.py.in[m
+[36m@@ -5,6 +5,7 @@[m
+ [m
+ SRCDIR="@abs_top_srcdir@"[m
+ BUILDDIR="@abs_top_builddir@"[m
+[32m+[m[32mGUARDNODEDIR="/home/tomos/guardnode"[m
+ EXEEXT="@EXEEXT@"[m
+ [m
+ # These will turn into comments if they were disabled when configuring.[m
+[1mdiff --git a/guardnode/qa/tests/input-args.py b/guardnode/qa/tests/input-args.py[m
+[1mindex f7a1c0a..0734c13 100755[m
+[1m--- a/guardnode/qa/tests/input-args.py[m
+[1m+++ b/guardnode/qa/tests/input-args.py[m
+[36m@@ -3,6 +3,7 @@[m
+ """test input args perform check correctly[m
+ [m
+ """[m
+[32m+[m[32mimport subprocess[m
+ [m
+ from test_framework.test_framework import BitcoinTestFramework[m
+ from test_framework.util import *[m
+[36m@@ -11,14 +12,36 @@[m [mclass InputArgHandlingTest(BitcoinTestFramework):[m
+ [m
+     def __init__(self):[m
+         super().__init__()[m
+[32m+[m[32m        self.setup_clean_chain = True[m
+[32m+[m[32m        self.num_nodes = 1[m
+[32m+[m
+[32m+[m[32m    def setup_network(self, split=False):[m
+[32m+[m[32m        self.nodes = start_nodes(self.num_nodes, self.options.tmpdir)[m
+[32m+[m
+[32m+[m[32m        #connect to a local machine for debugging[m
+[32m+[m[32m        #url = "http://bitcoinrpc:DP6DvqZtqXarpeNWyN3LZTFchCCyCUuHwNF7E8pX99x1@%s:%d" % ('127.0.0.1', 18332)[m
+[32m+[m[32m        #proxy = AuthServiceProxy(url)[m
+[32m+[m[32m        #proxy.url = url # store URL on proxy for info[m
+[32m+[m[32m        #self.nodes.append(proxy)[m
+[32m+[m
+[32m+[m[32m        self.is_network_split=False[m
+[32m+[m[32m        self.sync_all()[m
+ [m
+ [m
+     def run_test(self):[m
+[32m+[m[32m        # init node with request[m
+[32m+[m[32m        self.nodes[0].generate(1)[m
+[32m+[m[32m        print(self.nodes[0].getblockchaininfo())[m
+[32m+[m[32m        assert(False)[m
+[32m+[m[32m        return[m
+[32m+[m
+         # run guardnode[m
+[31m-        entry = '/$HOME/guardnode/run_guardnode'[m
+[32m+[m[32m        entry = '/home/tomos/guardnode/run_guardnode'[m
+         args = [ entry ][m
+ [m
+[31m-        guardnode = subprocess.Popen(args)[m
+[32m+[m[32m        guardnode = start_guardnode()[m
+[32m+[m
+[32m+[m[32m        guardnode.communicate(None)[m
+ [m
+ [m
+ [m
+[1mdiff --git a/guardnode/qa/tests/test_framework/util.py b/guardnode/qa/tests/test_framework/util.py[m
+[1mindex 3cb02a0..9c352b6 100644[m
+[1m--- a/guardnode/qa/tests/test_framework/util.py[m
+[1m+++ b/guardnode/qa/tests/test_framework/util.py[m
+[36m@@ -203,7 +203,7 @@[m [mdef initialize_datadir(dirname, n):[m
+     return datadir[m
+ [m
+ def rpc_auth_pair(n):[m
+[31m-    return 'rpcuser💻' + str(n), 'rpcpass🔑' + str(n)[m
+[32m+[m[32m    return 'rpcuser' + str(n), 'rpcpass' + str(n)[m
+ [m
+ def rpc_url(i, rpchost=None):[m
+     rpc_u, rpc_p = rpc_auth_pair(i)[m
+[36m@@ -411,6 +411,33 @@[m [mdef connect_nodes_bi(nodes, a, b):[m
+     connect_nodes(nodes[a], b)[m
+     connect_nodes(nodes[b], a)[m
+ [m
+[32m+[m[32mdef start_guardnode():[m
+[32m+[m[32m    """[m
+[32m+[m[32m    Start a guardnode and return its subprocess[m
+[32m+[m[32m    """[m
+[32m+[m
+[32m+[m[32m    entry = os.getenv("RUNGUARDNODE")[m
+[32m+[m[32m    # args = [ entry ][m
+[32m+[m[32m    rpc_u, rpc_p = rpc_auth_pair(0)[m
+[32m+[m[32m    port = rpc_port(0)[m
+[32m+[m[32m    args = [ entry, \[m
+[32m+[m[32m        "--rpchost", "127.0.0.1:"+str(port), "--rpcuser", rpc_u, "--rpcpass", rpc_p, \[m
+[32m+[m[32m        "--servicerpchost", "127.0.0.1:"+str(port), "--servicerpcuser", rpc_u, "--servicerpcpass", rpc_p  ][m
+[32m+[m[32m    print(args)[m
+[32m+[m[32m    guardnode = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=1)[m
+[32m+[m[32m    outs, errs = guardnode.communicate()[m
+[32m+[m[32m    print(outs)[m
+[32m+[m[32m    print(errs)[m
+[32m+[m
+[32m+[m[32m    # print guardnode.stdout.readline(), # read the first line[m
+[32m+[m
+[32m+[m[32m    # print p.communicate("n\n")[0], # signal the child to exit,[m
+[32m+[m[32m                               # read the rest of the output,[m
+[32m+[m
+[32m+[m
+[32m+[m[32m    return guardnode[m
+[32m+[m
+[32m+[m
+ def find_output(node, txid, amount):[m
+     """[m
+     Return index to output of txid with value amount[m

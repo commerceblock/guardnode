@@ -5,6 +5,7 @@
 
 SRCDIR="/home/tomos/ocean"
 BUILDDIR="/home/tomos/ocean"
+GUARDNODEDIR="/home/tomos/guardnode"
 EXEEXT=""
 
 # These will turn into comments if they were disabled when configuring.
