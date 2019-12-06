@@ -6,7 +6,7 @@ import sys
 import base58
 from time import sleep
 from .daemon import DaemonThread
-from .test_framework import util, address, key, authproxy
+from .qa.tests.test_framework import util, address, key, authproxy
 from .bid import BidHandler
 
 def connect(host, user, pw):
