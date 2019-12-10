@@ -22,33 +22,46 @@ class BidHandler():
         else:
             # do bidding
             list_unspent = self.service_ocean.listunspent(1, 9999999, [], True, "CBT")
-            # First try find previous TX_LOCKED_MULTISIG output with enough funds
-            bid_inputs = {}
+            input_sum = 0
+            bid_inputs = []
+            # First try to use previous TX_LOCKED_MULTISIG outputs
             for unspent in list_unspent:
-                if not unspent["solvable"] and unspent["amount"] >= request["auctionPrice"] + self.bid_fee:
-                    bid_inputs["txid"] = unspent["txid"]
-                    bid_inputs["vout"] = unspent["vout"]
-                    break
-            # Otherwise use any other output with enough funds
-            if not len(bid_inputs):
-                for unspent in list_unspent:
-                    if unspent["amount"] >= request["auctionPrice"]:
-                        bid_inputs["txid"] = unspent["txid"]
-                        bid_inputs["vout"] = unspent["vout"]
+                if not unspent["solvable"]:
+                    bid_inputs.append({"txid":unspent["txid"],"vout":unspent["vout"]})
+                    input_sum += unspent["amount"]
+                    if input_sum >= request["auctionPrice"] + self.bid_fee:
                         break
-            if not len(bid_inputs):
-                self.logger.warn("No unspent with enough CBT to match the auction price {}".format(request["auctionPrice"]))
+            # Next try to find a single input to cover the remaining amount
+            if input_sum < request["auctionPrice"] + self.bid_fee:
+                for unspent in list_unspent:
+                    # check amount and not already in list
+                    if unspent["amount"] >= request["auctionPrice"] - input_sum \
+                    and next((False for item in bid_inputs if item["txid"] == unspent["txid"]), True):
+                        bid_inputs.append({"txid":unspent["txid"],"vout":unspent["vout"]})
+                        input_sum += unspent["amount"]
+                        break
+            # Otherwise build sum from whichever utxos are available
+            if input_sum < request["auctionPrice"] + self.bid_fee:
+                for unspent in list_unspent:
+                    if next((False for item in bid_inputs if item["txid"] == unspent["txid"]), True):
+                        bid_inputs.append({"txid":unspent["txid"],"vout":unspent["vout"]})
+                        input_sum += unspent["amount"]
+                        if input_sum >= request["auctionPrice"] + self.bid_fee:
+                            break
+            if input_sum < request["auctionPrice"] + self.bid_fee:
+                self.logger.warn("Not enough CBT in wallet to match the auction price {}".format(request["auctionPrice"]))
                 return
+            self.logger.info("bid_inputs: {}\n\n".format(bid_inputs))
             bid_outputs = {}
             bid_outputs["endBlockHeight"] = request["endBlockHeight"]
             bid_outputs["requestTxid"] = request["txid"]
             bid_outputs["pubkey"] = self.service_ocean.validateaddress(self.service_ocean.getnewaddress())["pubkey"]
             bid_outputs["feePubkey"] = self.client_fee_pubkey
             bid_outputs["value"] = request["auctionPrice"]
-            bid_outputs["change"] = unspent["amount"] - request["auctionPrice"] - self.bid_fee
+            bid_outputs["change"] = input_sum - request["auctionPrice"] - self.bid_fee
             bid_outputs["changeAddress"] = self.service_ocean.getnewaddress()
             bid_outputs["fee"] = self.bid_fee
-            raw_bid_tx = self.service_ocean.createrawbidtx([bid_inputs], bid_outputs)
+            raw_bid_tx = self.service_ocean.createrawbidtx(bid_inputs, bid_outputs)
             signed_raw_bid_tx = self.service_ocean.signrawtransaction(raw_bid_tx)
             # Import address so TX_LOCKED_MULTISIG output can be spent from
             address = self.service_ocean.decoderawtransaction(signed_raw_bid_tx['hex'])["vout"][0]["scriptPubKey"]["hex"]

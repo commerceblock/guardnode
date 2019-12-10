@@ -435,6 +435,24 @@ def start_guardnode_await_error(timeout,args=[]):
     out, err = guardnode.communicate()
     return out, err
 
+def make_request(node, startprice=5):
+    """
+    Make request transaciton and send to mempool.
+    Return txid
+    """
+    blockcount = node.getblockcount()
+    unspent = node.listunspent(1, 9999999, [], True, "PERMISSION")
+    pubkey = node.validateaddress(node.getnewaddress())["pubkey"]
+    genesis = node.getblockhash(0)
+
+    inputs = {"txid": unspent[0]["txid"], "vout": unspent[0]["vout"]}
+    outputs = {"decayConst": 10, "endBlockHeight": blockcount+20, "fee": 1, "genesisBlockHash": genesis,
+    "startBlockHeight": blockcount+10, "tickets": 10, "startPrice": startprice, "value": unspent[0]["amount"], "pubkey": pubkey}
+    tx = node.createrawrequesttx(inputs, outputs)
+    signedtx = node.signrawtransaction(tx)
+    txid = node.sendrawtransaction(signedtx["hex"])
+    assert(txid in node.getrawmempool())
+    return txid
 
 def find_output(node, txid, amount):
     """

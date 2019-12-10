@@ -11,7 +11,7 @@ from test_framework.util import *
 
 WAIT_FOR_ERROR_TIME = 0.5
 
-class InputArgHandlingTest(BitcoinTestFramework):
+class BiddingTest(BitcoinTestFramework):
 
     def __init__(self):
         super().__init__()
@@ -32,19 +32,10 @@ class InputArgHandlingTest(BitcoinTestFramework):
         # init node
         self.nodes[0].importprivkey("cTnxkovLhGbp7VRhMhGThYt8WDwviXgaVAD8DjaVa5G5DApwC6tF")
         self.nodes[0].generate(101)
-        # Make request
-        addr = self.nodes[0].getnewaddress()
-        priv = self.nodes[0].dumpprivkey(addr)
-        pubkey = self.nodes[0].validateaddress(addr)["pubkey"]
         genesis = self.nodes[0].getblockhash(0)
-        unspent = self.nodes[0].listunspent(1, 9999999, [], True, "PERMISSION")
-        inputs = {"txid": unspent[0]["txid"], "vout": unspent[0]["vout"]}
-        outputs = {"decayConst": 10, "endBlockHeight": 120, "fee": 1, "genesisBlockHash": genesis,
-        "startBlockHeight": 110, "tickets": 10, "startPrice": 5, "value": unspent[0]["amount"], "pubkey": pubkey}
-        tx = self.nodes[0].createrawrequesttx(inputs, outputs)
-        signedtx = self.nodes[0].signrawtransaction(tx)
-        txid = self.nodes[0].sendrawtransaction(signedtx["hex"])
-        assert(txid in self.nodes[0].getrawmempool())
+
+        # Make request
+        requesttxid = make_request(self.nodes[0])
 
         # TODO: tests for all input arg checks
         # Test error for bad bidpubkey
@@ -59,59 +50,40 @@ class InputArgHandlingTest(BitcoinTestFramework):
         self.nodes[0].generate(1)
         assert_equal(len(self.nodes[0].getrequests()),1)
 
-        # Test bid made correctly
         bidaddr = self.nodes[0].getnewaddress()
         bidpubkey = self.nodes[0].validateaddress(bidaddr)["pubkey"]
         guardnode = start_guardnode(["--nodelogfile", log_filename(self.options.tmpdir,0,"debug.log"),"--bidpubkey",bidpubkey])
-        time.sleep(4) # give time for guardnode to make bid
+
+        # Test bid placed
+        time.sleep(2) # give time for guardnode to make bid
         self.nodes[0].generate(1)
-        bidtxid1 = self.nodes[0].getrequestbids(txid)["bids"][0]["txid"] # check bid exists
+        # check bid exists
+        bidtxid1 = self.nodes[0].getrequestbids(requesttxid)["bids"][0]["txid"]
 
         # Test next bid uses TX_LOCKED_MULTISIG output => uses previous bids utxo
         self.nodes[0].generate(19) # request over
         assert(not self.nodes[0].getrequests())
-        # new request
-        inputs = {"txid": unspent[1]["txid"], "vout": unspent[1]["vout"]}
-        outputs = {"decayConst": 10, "endBlockHeight": 140, "fee": 1, "genesisBlockHash": genesis,
-        "startBlockHeight": 130, "tickets": 10, "startPrice": 4, "value": unspent[1]["amount"], "pubkey": pubkey}
-        tx = self.nodes[0].createrawrequesttx(inputs, outputs)
-        signedtx = self.nodes[0].signrawtransaction(tx)
-        txid = self.nodes[0].sendrawtransaction(signedtx["hex"])
-        assert(txid in self.nodes[0].getrawmempool())
+        requesttxid = make_request(self.nodes[0],4) # new request with price 4 to ensure TX_LOCKED_MULTISIG output is used
         self.nodes[0].generate(1)
-        time.sleep(4) # give time for guardnode to make bid
+        time.sleep(2) # give time for guardnode to make bid
         self.nodes[0].generate(1)
-
         # check bid2 input is bid1 output
-        bidtxid2 = self.nodes[0].getrequestbids(txid)["bids"][0]["txid"]
+        bidtxid2 = self.nodes[0].getrequestbids(requesttxid)["bids"][0]["txid"]
         bidtx2 = self.nodes[0].decoderawtransaction(self.nodes[0].getrawtransaction(bidtxid2))
+        assert_equal(len(bidtx2["vin"]),1)
         assert_equal(bidtxid1,bidtx2["vin"][0]["txid"])
 
-        # Test bid made without TX_LOCKED_MULTISIG output by increasing bid amount
-        # to greater than TX_LOCKED_MULTISIG outputs value
+        # Test coin selection fills amount when TX_LOCKED_MULTISIG outputs not
+        # sufficient
         self.nodes[0].generate(19) # request over
         assert(not self.nodes[0].getrequests())
         # new request
-        inputs = {"txid": unspent[2]["txid"], "vout": unspent[2]["vout"]}
-        outputs = {"decayConst": 10, "endBlockHeight": 160, "fee": 1, "genesisBlockHash": genesis,
-        "startBlockHeight": 150, "tickets": 10, "startPrice": 5, "value": unspent[2]["amount"], "pubkey": pubkey}
-        tx = self.nodes[0].createrawrequesttx(inputs, outputs)
-        signedtx = self.nodes[0].signrawtransaction(tx)
-        txid = self.nodes[0].sendrawtransaction(signedtx["hex"])
-        assert(txid in self.nodes[0].getrawmempool())
+        requesttxid = make_request(self.nodes[0])
         self.nodes[0].generate(1)
         time.sleep(4) # give time for guardnode to make bid
         self.nodes[0].generate(1)
-
-        # check bid exists and inputs utxo was not of type lockedmultisig
-        bidtxid3 = self.nodes[0].getrequestbids(txid)["bids"][0]["txid"]
-        bidtx3 = self.nodes[0].decoderawtransaction(self.nodes[0].getrawtransaction(bidtxid2))
-        # to check if not type lockedmultisig: non bid vout value should be
-        # change from initial free coin transaction since all other utxos are
-        # lockedmultisig
-        vout = 1 if bidtx3["vout"][0]["value"] == 5 else 0
-        assert_greater_than(20999, bidtx3["vout"][vout]["value"])
+        _ = self.nodes[0].getrequestbids(requesttxid)["bids"][0]["txid"] # ensure bid exists
 
 
 if __name__ == '__main__':
-    InputArgHandlingTest().main()
+    BiddingTest().main()
