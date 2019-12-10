@@ -3,9 +3,9 @@
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-SRCDIR="/home/tomos/ocean"
-BUILDDIR="/home/tomos/ocean"
-GUARDNODEDIR="/home/tomos/guardnode"
+SRCDIR="/Users/tomos/ocean"
+BUILDDIR="/Users/tomos/ocean"
+GUARDNODEDIR="/Users/tomos/guardnode"
 EXEEXT=""
 
 # These will turn into comments if they were disabled when configuring.

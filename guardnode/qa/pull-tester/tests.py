@@ -102,6 +102,7 @@ if ENABLE_ZMQ:
         raise
 
 testScripts = [
+    'bidding.py',
     'rawtransactions.py',
     'input-args.py'
 ]

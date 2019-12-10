@@ -14,6 +14,7 @@ import sys
 from binascii import hexlify, unhexlify
 from base64 import b64encode
 from decimal import Decimal, ROUND_DOWN
+from threading import Thread
 import json
 import http.client
 import random
@@ -379,7 +380,7 @@ def start_nodes(num_nodes, dirname, extra_args=None, rpchost=None, timewait=None
     return rpcs
 
 def log_filename(dirname, n_node, logname):
-    return os.path.join(dirname, "node"+str(n_node), "oceanregtest", logname)
+    return os.path.join(dirname, "node"+str(n_node), "elementsregtest", logname)
 
 def stop_node(node, i):
     try:
@@ -411,31 +412,28 @@ def connect_nodes_bi(nodes, a, b):
     connect_nodes(nodes[a], b)
     connect_nodes(nodes[b], a)
 
-def start_guardnode():
+def start_guardnode(args=[]):
     """
-    Start a guardnode and return its subprocess
+    Start a guardnode and return its subprocess. Arguments not related to connecting
+    must be provided as a list
     """
-
     entry = os.getenv("RUNGUARDNODE")
-    # args = [ entry ]
     rpc_u, rpc_p = rpc_auth_pair(0)
     port = rpc_port(0)
     args = [ entry, \
         "--rpchost", "127.0.0.1:"+str(port), "--rpcuser", rpc_u, "--rpcpass", rpc_p, \
-        "--servicerpchost", "127.0.0.1:"+str(port), "--servicerpcuser", rpc_u, "--servicerpcpass", rpc_p  ]
-    print(args)
+        "--servicerpchost", "127.0.0.1:"+str(port), "--servicerpcuser", rpc_u, "--servicerpcpass", rpc_p, \
+        "--bidlimit", "10", "--serviceblocktime", "1"] \
+        + args
     guardnode = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=1)
-    outs, errs = guardnode.communicate()
-    print(outs)
-    print(errs)
-
-    # print guardnode.stdout.readline(), # read the first line
-
-    # print p.communicate("n\n")[0], # signal the child to exit,
-                               # read the rest of the output,
-
-
     return guardnode
+
+def start_guardnode_await_error(timeout,args=[]):
+    guardnode = start_guardnode(args)
+    time.sleep(timeout)
+    guardnode.kill()
+    out, err = guardnode.communicate()
+    return out, err
 
 
 def find_output(node, txid, amount):

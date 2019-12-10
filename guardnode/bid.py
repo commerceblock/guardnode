@@ -25,7 +25,7 @@ class BidHandler():
             # First try find previous TX_LOCKED_MULTISIG output with enough funds
             bid_inputs = {}
             for unspent in list_unspent:
-                if unspent["solvable"] == "false" and unspent["amount"] >= request["auctionPrice"]:
+                if not unspent["solvable"] and unspent["amount"] >= request["auctionPrice"] + self.bid_fee:
                     bid_inputs["txid"] = unspent["txid"]
                     bid_inputs["vout"] = unspent["vout"]
                     break
@@ -50,4 +50,7 @@ class BidHandler():
             bid_outputs["fee"] = self.bid_fee
             raw_bid_tx = self.service_ocean.createrawbidtx([bid_inputs], bid_outputs)
             signed_raw_bid_tx = self.service_ocean.signrawtransaction(raw_bid_tx)
+            # Import address so TX_LOCKED_MULTISIG output can be spent from
+            address = self.service_ocean.decoderawtransaction(signed_raw_bid_tx['hex'])["vout"][0]["scriptPubKey"]["hex"]
+            self.service_ocean.importaddress(address)
             return self.service_ocean.sendrawtransaction(signed_raw_bid_tx["hex"])
