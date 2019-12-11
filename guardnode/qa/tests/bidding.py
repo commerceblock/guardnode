@@ -9,7 +9,8 @@ import subprocess
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.util import *
 
-WAIT_FOR_ERROR_TIME = 0.5
+WAIT_FOR_ERROR = 0.5 # sleep while guardnode errors
+WAIT_FOR_WORK = 2 # sleep while guardnode processes
 
 class BiddingTest(BitcoinTestFramework):
 
@@ -39,36 +40,46 @@ class BiddingTest(BitcoinTestFramework):
 
         # TODO: tests for all input arg checks
         # Test error for bad bidpubkey
-        _, err = start_guardnode_await_error(WAIT_FOR_ERROR_TIME,["--bidpubkey","--nodelogfile",log_filename(self.options.tmpdir,0,"debug.log")])
-        assert(b'expected one argument' in err)
-        _, err = start_guardnode_await_error(WAIT_FOR_ERROR_TIME,["--bidpubkey","12345","--nodelogfile",log_filename(self.options.tmpdir,0,"debug.log")])
-        assert(b'Error: Odd-length string' in err)
+        start_guardnode(self.options.tmpdir,["--bidpubkey"])
+        time.sleep(WAIT_FOR_ERROR)
+        assert(GN_log_contains(self.options.tmpdir,'expected one argument'))
+        start_guardnode(self.options.tmpdir,["--bidpubkey","12345"])
+        time.sleep(WAIT_FOR_ERROR)
+        assert(GN_log_contains(self.options.tmpdir,'Error: Odd-length string'))
 
         # Test err on no requests
-        _, err = start_guardnode_await_error(WAIT_FOR_ERROR_TIME, ["--nodelogfile", log_filename(self.options.tmpdir,0,"debug.log")])
-        assert(b'No active requests for genesis:' in err)
-        self.nodes[0].generate(1)
-        assert_equal(len(self.nodes[0].getrequests()),1)
+        start_guardnode(self.options.tmpdir)
+        time.sleep(WAIT_FOR_ERROR)
+        assert(GN_log_contains(self.options.tmpdir,'No active requests for genesis: '+genesis))
 
+        self.nodes[0].generate(1) # mine request tx
+        assert_equal(len(self.nodes[0].getrequests()),1)
         bidaddr = self.nodes[0].getnewaddress()
         bidpubkey = self.nodes[0].validateaddress(bidaddr)["pubkey"]
-        guardnode = start_guardnode(["--nodelogfile", log_filename(self.options.tmpdir,0,"debug.log"),"--bidpubkey",bidpubkey])
+        guardnode = start_guardnode(self.options.tmpdir,["--bidpubkey",bidpubkey])
+
+        # Check found request
+        time.sleep(WAIT_FOR_WORK)
+        assert(GN_log_contains(self.options.tmpdir,'Found request: '))  # found request log entry
+        assert(GN_log_contains(self.options.tmpdir,requesttxid))        # with txid
 
         # Test bid placed
-        time.sleep(2) # give time for guardnode to make bid
+        time.sleep(WAIT_FOR_WORK) # give time for guardnode to make bid
         self.nodes[0].generate(1)
-        # check bid exists
+        # check bid exists in network and GN logs
         bidtxid1 = self.nodes[0].getrequestbids(requesttxid)["bids"][0]["txid"]
+        assert(GN_log_contains(self.options.tmpdir,"Bid "+bidtxid1+" submitted"))
 
         # Test next bid uses TX_LOCKED_MULTISIG output => uses previous bids utxo
         self.nodes[0].generate(19) # request over
         assert(not self.nodes[0].getrequests())
         requesttxid = make_request(self.nodes[0],4) # new request with price 4 to ensure TX_LOCKED_MULTISIG output is used
         self.nodes[0].generate(1)
-        time.sleep(2) # give time for guardnode to make bid
+        time.sleep(WAIT_FOR_WORK) # give time for guardnode to make bid
         self.nodes[0].generate(1)
-        # check bid2 input is bid1 output
         bidtxid2 = self.nodes[0].getrequestbids(requesttxid)["bids"][0]["txid"]
+        assert(GN_log_contains(self.options.tmpdir,"Bid "+bidtxid2+" submitted")) # check GN logs
+        # check bid2 input is bid1 output
         bidtx2 = self.nodes[0].decoderawtransaction(self.nodes[0].getrawtransaction(bidtxid2))
         assert_equal(len(bidtx2["vin"]),1)
         assert_equal(bidtxid1,bidtx2["vin"][0]["txid"])
@@ -80,10 +91,10 @@ class BiddingTest(BitcoinTestFramework):
         # new request
         requesttxid = make_request(self.nodes[0])
         self.nodes[0].generate(1)
-        time.sleep(4) # give time for guardnode to make bid
+        time.sleep(WAIT_FOR_WORK) # give time for guardnode to make bid
         self.nodes[0].generate(1)
-        _ = self.nodes[0].getrequestbids(requesttxid)["bids"][0]["txid"] # ensure bid exists
-
+        bidtxid3 = self.nodes[0].getrequestbids(requesttxid)["bids"][0]["txid"] # ensure bid exists
+        assert(GN_log_contains(self.options.tmpdir,"Bid "+bidtxid3+" submitted")) # check GN logs
 
 if __name__ == '__main__':
     BiddingTest().main()

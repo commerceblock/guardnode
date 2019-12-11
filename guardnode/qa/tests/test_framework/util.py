@@ -412,7 +412,7 @@ def connect_nodes_bi(nodes, a, b):
     connect_nodes(nodes[a], b)
     connect_nodes(nodes[b], a)
 
-def start_guardnode(args=[]):
+def start_guardnode(dirname, args=[]):
     """
     Start a guardnode and return its subprocess. Arguments not related to connecting
     must be provided as a list
@@ -420,20 +420,32 @@ def start_guardnode(args=[]):
     entry = os.getenv("RUNGUARDNODE")
     rpc_u, rpc_p = rpc_auth_pair(0)
     port = rpc_port(0)
+    nodelogfile = log_filename(dirname,0,"debug.log")
     args = [ entry, \
         "--rpchost", "127.0.0.1:"+str(port), "--rpcuser", rpc_u, "--rpcpass", rpc_p, \
         "--servicerpchost", "127.0.0.1:"+str(port), "--servicerpcuser", rpc_u, "--servicerpcpass", rpc_p, \
-        "--bidlimit", "10", "--serviceblocktime", "1"] \
+        "--bidlimit", "10", "--serviceblocktime", "1", "--nodelogfile", nodelogfile] \
         + args
-    guardnode = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=1)
-    return guardnode
+    # remove previous log
+    try:
+        os.remove(dirname+'/GN_log')
+    except:
+        pass
+    # make GN log file
+    log = open(dirname+'/GN_log', 'a')
+    guardnode = subprocess.Popen(args, stdout=log, stderr=log, bufsize=1)
+    return guardnode, log
 
-def start_guardnode_await_error(timeout,args=[]):
-    guardnode = start_guardnode(args)
-    time.sleep(timeout)
-    guardnode.kill()
-    out, err = guardnode.communicate()
-    return out, err
+def GN_log_contains(dirname,str):
+    """
+    Searches guardnode log for given string line by line from the bottom
+    of the file
+    """
+    with open(dirname+'/GN_log', 'r') as log:
+        for line in reversed(list(log)):
+            if str in line.rstrip():
+                return True
+        return False
 
 def make_request(node, startprice=5):
     """
