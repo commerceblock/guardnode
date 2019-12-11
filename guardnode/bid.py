@@ -5,8 +5,7 @@ from decimal import *
 DEFAULT_BID_FEE = Decimal("0.0001")
 
 class BidHandler():
-    def __init__(self, ocean, pubkey, bid_limit, bid_fee):
-        self.client_fee_pubkey = pubkey
+    def __init__(self, ocean, bid_limit, bid_fee):
         self.bid_limit = bid_limit
         self.bid_fee = DEFAULT_BID_FEE if bid_fee is None else Decimal(format(bid_fee, ".8g"))
         self.service_ocean = ocean
@@ -14,7 +13,7 @@ class BidHandler():
         logging.getLogger("BitcoinRPC")
         self.logger = logging.getLogger("Bid")
 
-    def do_request_bid(self, request):
+    def do_request_bid(self, request, client_fee_pubkey):
         if request["startBlockHeight"] <= self.service_ocean.getblockcount():
             self.logger.warn("Too late to bid for request. Service already started")
         elif request["auctionPrice"] > self.bid_limit:
@@ -51,12 +50,11 @@ class BidHandler():
             if input_sum < request["auctionPrice"] + self.bid_fee:
                 self.logger.warn("Not enough CBT in wallet to match the auction price {}".format(request["auctionPrice"]))
                 return
-            self.logger.info("bid_inputs: {}\n\n".format(bid_inputs))
             bid_outputs = {}
             bid_outputs["endBlockHeight"] = request["endBlockHeight"]
             bid_outputs["requestTxid"] = request["txid"]
             bid_outputs["pubkey"] = self.service_ocean.validateaddress(self.service_ocean.getnewaddress())["pubkey"]
-            bid_outputs["feePubkey"] = self.client_fee_pubkey
+            bid_outputs["feePubkey"] = client_fee_pubkey
             bid_outputs["value"] = request["auctionPrice"]
             bid_outputs["change"] = input_sum - request["auctionPrice"] - self.bid_fee
             bid_outputs["changeAddress"] = self.service_ocean.getnewaddress()

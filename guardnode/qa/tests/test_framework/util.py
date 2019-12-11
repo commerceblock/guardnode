@@ -42,6 +42,8 @@ PORT_RANGE = 5000
 
 BITCOIND_PROC_WAIT_TIMEOUT = 60
 
+WAIT_FOR_ERROR = 0.5 # sleep to allow guardnode to produce error
+WAIT_FOR_WORK = 2 # sleep to allow guardnode to process
 
 class PortSeed:
     # Must be initialized with a unique integer for each process
@@ -414,8 +416,8 @@ def connect_nodes_bi(nodes, a, b):
 
 def start_guardnode(dirname, args=[]):
     """
-    Start a guardnode and return its subprocess. Arguments not related to connecting
-    must be provided as a list
+    Start a guardnode and return its subprocess. Arguments not required for connecting
+    must be provided as a list. Returns tuple of subprocess and log file object
     """
     entry = os.getenv("RUNGUARDNODE")
     rpc_u, rpc_p = rpc_auth_pair(0)
@@ -433,8 +435,12 @@ def start_guardnode(dirname, args=[]):
         pass
     # make GN log file
     log = open(dirname+'/GN_log', 'a')
-    guardnode = subprocess.Popen(args, stdout=log, stderr=log, bufsize=1)
+    guardnode = subprocess.Popen(args, stdout=log, stderr=subprocess.STDOUT, bufsize=1)
     return guardnode, log
+
+def stop_guardnode(guardnode):
+    guardnode[1].close() # close log file
+    guardnode[0].terminate() # terminate process
 
 def GN_log_contains(dirname,str):
     """
@@ -446,6 +452,13 @@ def GN_log_contains(dirname,str):
             if str in line.rstrip():
                 return True
         return False
+
+def GN_log_print(dirname):
+    """
+    print log to stdout for testing
+    """
+    with open(dirname+'/GN_log', 'r') as log:
+        print(log.read())
 
 def make_request(node, startprice=5):
     """

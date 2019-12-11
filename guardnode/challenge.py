@@ -49,9 +49,11 @@ class Challenge(DaemonThread):
 
         # If not set then generate fresh
         self.client_fee_pubkey = None
+        self.genfeepubkeys = True;
+        self.key = None
         if args.bidpubkey is not None:
-            self.genfeepubkeys = False;
             self.client_fee_pubkey = args.bidpubkey
+            self.genfeepubkeys = False;
             # get address prefix
             self.args.nodeaddrprefix = self.ocean.getsidechaininfo()["addr_prefixes"]["PUBKEY_ADDRESS"]
             if not hasattr(self.args, 'nodeaddrprefix'):
@@ -70,14 +72,13 @@ class Challenge(DaemonThread):
 
             self.logger.info("Fee address: {} and pubkey: {}".format(address, self.client_fee_pubkey))
         else:
-            self.genfeepubkeys = True;
             self.logger.info("Fee pubkey will be freshly generated each bid")
 
         # Init bid handler
-        self.bidhandler = BidHandler(self.service_ocean, self.client_fee_pubkey, args.bidlimit, args.bidfee)
+        self.bidhandler = BidHandler(self.service_ocean, args.bidlimit, args.bidfee)
 
+    # store private key for signing
     def set_key(self, addr):
-        self.logger.info("set_key address {}".format(addr))
         priv = self.service_ocean.dumpprivkey(addr)
         decoded = base58.b58decode(priv)[1:-5] # check for compressed or not
         self.key = key.CECKey()
@@ -87,11 +88,8 @@ class Challenge(DaemonThread):
     # gen new feepubkey and set self.key
     def gen_feepubkey(self):
         address = self.service_ocean.getnewaddress()
-        self.logger.info("address: {}".format(address))
-        self.key = self.set_key(address)
+        self.set_key(address)
         self.client_fee_pubkey = self.service_ocean.validateaddress(address)["pubkey"]
-        self.logger.info("NEW PUB KEY: {}".format(self.client_fee_pubkey))
-        self.logger.info("NEW priv KEY: {}".format(self.key))
 
     def respond(self, bid_txid, txid):
         sig_hex = util.bytes_to_hex_str(self.key.sign(util.hex_str_to_rev_bytes(txid)))
@@ -117,11 +115,11 @@ class Challenge(DaemonThread):
             if len(requests) > 0:
                 request = requests[0]
                 self.logger.info("Found request: {}".format(request))
-                # gen pub key for each request
-                self.logger.info("genfeepubkeys {}".format(self.genfeepubkeys))
-                if self.genfeepubkeys:
+                if self.genfeepubkeys: # Gen new pubkey if required
                     self.gen_feepubkey()
-                bid_txid = self.bidhandler.do_request_bid(request)
+                    self.logger.info("PUB KEY: {}".format(self.client_fee_pubkey))
+                    self.logger.info("PRIV KEY {}".format(self.key))
+                bid_txid = self.bidhandler.do_request_bid(request, self.client_fee_pubkey)
                 if bid_txid is not None:
                     self.logger.info("Bid {} submitted".format(bid_txid))
                     while not self.stop_event.is_set():
