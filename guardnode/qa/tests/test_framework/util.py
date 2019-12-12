@@ -416,8 +416,9 @@ def connect_nodes_bi(nodes, a, b):
 
 def start_guardnode(dirname, args=[]):
     """
-    Start a guardnode and return its subprocess. Arguments not required for connecting
-    must be provided as a list. Returns tuple of subprocess and log file object
+    Start a guardnode against node 0 and return its subprocess. Arguments not
+    required for connecting must be provided as a list. Returns tuple of subprocess
+    and log file object
     """
     entry = os.getenv("RUNGUARDNODE")
     rpc_u, rpc_p = rpc_auth_pair(0)

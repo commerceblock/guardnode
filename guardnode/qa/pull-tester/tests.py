@@ -103,7 +103,6 @@ if ENABLE_ZMQ:
 
 testScripts = [
     'bidding.py',
-    'rawtransactions.py',
     'input-args.py'
 ]
 if ENABLE_ZMQ:

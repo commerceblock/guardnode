@@ -3,9 +3,12 @@
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-SRCDIR="/Users/tomos/ocean"
-BUILDDIR="/Users/tomos/ocean"
-GUARDNODEDIR="/Users/tomos/guardnode"
+from os.path import expanduser
+home = expanduser("~")
+
+SRCDIR=home+"/ocean"
+BUILDDIR=home+"/ocean"
+GUARDNODEDIR=home+"/guardnode"
 EXEEXT=""
 
 # These will turn into comments if they were disabled when configuring.

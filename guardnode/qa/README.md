@@ -25,6 +25,9 @@ pip3 install pyzmq
 Running tests
 =============
 
+First set directories for Ocean source, Ocean build and Guardnode in
+guardnode/qa/pull-tester/tests_config.py. Default is Home folder.
+
 You can run any single test by calling
 
     qa/pull-tester/rpc-tests.py <testname>

@@ -117,8 +117,6 @@ class Challenge(DaemonThread):
                 self.logger.info("Found request: {}".format(request))
                 if self.genfeepubkeys: # Gen new pubkey if required
                     self.gen_feepubkey()
-                    self.logger.info("PUB KEY: {}".format(self.client_fee_pubkey))
-                    self.logger.info("PRIV KEY {}".format(self.key))
                 bid_txid = self.bidhandler.do_request_bid(request, self.client_fee_pubkey)
                 if bid_txid is not None:
                     self.logger.info("Bid {} submitted".format(bid_txid))

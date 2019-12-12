@@ -5,7 +5,6 @@
 """
 import subprocess
 
-
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.util import *
 
@@ -14,15 +13,16 @@ class BiddingTest(BitcoinTestFramework):
     def __init__(self):
         super().__init__()
         self.setup_clean_chain = True
-        self.num_nodes = 1
+        self.num_nodes = 2
         self.extra_args = [["-txindex=1 -initialfreecoins=50000000000000", "-policycoins=50000000000000",
     "-permissioncoinsdestination=76a914bc835aff853179fa88f2900f9003bb674e17ed4288ac",
     "-initialfreecoinsdestination=76a914bc835aff853179fa88f2900f9003bb674e17ed4288ac",
     "-challengecoinsdestination=76a91415de997afac9857dc97cdd43803cf1138f3aaef788ac",
-    "-debug=1"]]
+    "-debug=1"] for i in range(2)]
 
     def setup_network(self, split=False):
         self.nodes = start_nodes(self.num_nodes, self.options.tmpdir, self.extra_args)
+        connect_nodes_bi(self.nodes,0,1)
         self.is_network_split=False
         self.sync_all()
 
@@ -30,6 +30,7 @@ class BiddingTest(BitcoinTestFramework):
         # init node
         self.nodes[0].importprivkey("cTnxkovLhGbp7VRhMhGThYt8WDwviXgaVAD8DjaVa5G5DApwC6tF")
         self.nodes[0].generate(101)
+        self.sync_all()
         genesis = self.nodes[0].getblockhash(0)
 
         # start guardnode
@@ -90,9 +91,9 @@ class BiddingTest(BitcoinTestFramework):
         guardnode = start_guardnode(self.options.tmpdir)
         time.sleep(WAIT_FOR_WORK) # allow set up time
         assert(GN_log_contains(self.options.tmpdir,"Fee pubkey will be freshly generated each bid")) # check GN logs
-        # make 3 bids and save
+        # make 3 bids on seperate requests and store
         bids = []
-        for i in range(0,3):
+        for i in range(3):
             self.nodes[0].generate(19) # ensure currenct request over
             assert(not self.nodes[0].getrequests())
             requesttxid = make_request(self.nodes[0],5)
@@ -102,12 +103,9 @@ class BiddingTest(BitcoinTestFramework):
             GN_log_print(self.options.tmpdir)
             bids.append(self.nodes[0].getrequestbids(requesttxid)["bids"][0])
 
-        assert(bid1[0]["feePubKey"] != bid1[1]["feePubKey"])
-        assert(bid1[0]["feePubKey"] != bid1[2]["feePubKey"])
-        assert(bid1[1]["feePubKey"] != bid1[2]["feePubKey"])
-        assert_equal(bid1["feePubKey"],bidpubkey) # correct bidpubkey used
-
-        assert(False)
+        assert(bids[0]["feePubKey"] != bids[1]["feePubKey"])
+        assert(bids[0]["feePubKey"] != bids[2]["feePubKey"])
+        assert(bids[1]["feePubKey"] != bids[2]["feePubKey"])
 
 
 if __name__ == '__main__':
