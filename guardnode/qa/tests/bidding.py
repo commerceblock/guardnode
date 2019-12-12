@@ -100,13 +100,11 @@ class BiddingTest(BitcoinTestFramework):
             self.nodes[0].generate(1)
             time.sleep(WAIT_FOR_WORK) # give time for guardnode to make bid
             self.nodes[0].generate(1)
-            GN_log_print(self.options.tmpdir)
             bids.append(self.nodes[0].getrequestbids(requesttxid)["bids"][0])
 
         assert(bids[0]["feePubKey"] != bids[1]["feePubKey"])
         assert(bids[0]["feePubKey"] != bids[2]["feePubKey"])
         assert(bids[1]["feePubKey"] != bids[2]["feePubKey"])
-
 
 if __name__ == '__main__':
     BiddingTest().main()

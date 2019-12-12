@@ -14,7 +14,6 @@ import sys
 from binascii import hexlify, unhexlify
 from base64 import b64encode
 from decimal import Decimal, ROUND_DOWN
-from threading import Thread
 import json
 import http.client
 import random
@@ -430,10 +429,8 @@ def start_guardnode(dirname, args=[]):
         "--bidlimit", "10", "--serviceblocktime", "1", "--nodelogfile", nodelogfile] \
         + args
     # remove previous log
-    try:
+    if os.path.exists(dirname+'/GN_log'):
         os.remove(dirname+'/GN_log')
-    except:
-        pass
     # make GN log file
     log = open(dirname+'/GN_log', 'a')
     guardnode = subprocess.Popen(args, stdout=log, stderr=subprocess.STDOUT, bufsize=1)

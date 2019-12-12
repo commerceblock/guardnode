@@ -26,7 +26,7 @@ Running tests
 =============
 
 First set directories for Ocean source, Ocean build and Guardnode in
-guardnode/qa/pull-tester/tests_config.py. Default is Home folder.
+`guardnode/qa/pull-tester/tests_config.py`. Default is Home folder.
 
 You can run any single test by calling
 

@@ -49,27 +49,24 @@ class Challenge(DaemonThread):
 
         # If not set then generate fresh
         self.client_fee_pubkey = None
-        self.genfeepubkeys = True;
+        self.genfeepubkeys = True
         self.key = None
         if args.bidpubkey is not None:
             self.client_fee_pubkey = args.bidpubkey
-            self.genfeepubkeys = False;
+            self.genfeepubkeys = False
             # get address prefix
             self.args.nodeaddrprefix = self.ocean.getsidechaininfo()["addr_prefixes"]["PUBKEY_ADDRESS"]
             if not hasattr(self.args, 'nodeaddrprefix'):
                 self.logger.error("Error getting address prefix - check node version")
                 sys.exit(1)
-
             # test valid key and imported
             addr = address.key_to_p2pkh_version(self.client_fee_pubkey, args.nodeaddrprefix)
             validate = self.ocean.validateaddress(addr)
             if validate['ismine'] == False:
                 self.logger.error("Key for address {} is missing from the wallet".format(addr))
                 sys.exit(1)
-
             # set self.key for signing
             self.set_key(addr)
-
             self.logger.info("Fee address: {} and pubkey: {}".format(address, self.client_fee_pubkey))
         else:
             self.logger.info("Fee pubkey will be freshly generated each bid")
