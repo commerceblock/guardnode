@@ -413,16 +413,16 @@ def connect_nodes_bi(nodes, a, b):
     connect_nodes(nodes[a], b)
     connect_nodes(nodes[b], a)
 
-def start_guardnode(dirname, args=[]):
+def start_guardnode(dirname, node, args=[]):
     """
     Start a guardnode against node 0 and return its subprocess. Arguments not
     required for connecting must be provided as a list. Returns tuple of subprocess
     and log file object
     """
     entry = os.getenv("RUNGUARDNODE")
-    rpc_u, rpc_p = rpc_auth_pair(0)
-    port = rpc_port(0)
-    nodelogfile = log_filename(dirname,0,"debug.log")
+    rpc_u, rpc_p = rpc_auth_pair(node)
+    port = rpc_port(node)
+    nodelogfile = log_filename(dirname,node,"debug.log")
     args = [ entry, \
         "--rpchost", "127.0.0.1:"+str(port), "--rpcuser", rpc_u, "--rpcpass", rpc_p, \
         "--servicerpchost", "127.0.0.1:"+str(port), "--servicerpcuser", rpc_u, "--servicerpcpass", rpc_p, \

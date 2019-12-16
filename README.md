@@ -26,6 +26,7 @@ Guardnode daemon responding to client chain coordinator challenges and generatin
 - `--bidlimit`: Guardnode upper bid limit
 - `--bidfee`: Guardnode bid fee (Optional, defaults to 0.0001)
 - `--bidpubkey`: Guardnode winning bid public key (Optional, daemon will generate one)
+- `--uniquebidpubkeys`: Flag to activate generation of fresh bid public keys for each bid (Optional)
 
 
 ### Running services with docker-compose

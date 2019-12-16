@@ -1,4 +1,4 @@
-The [pull-tester](/qa/pull-tester/) folder contains a script to call
+The [pull_tester](/qa/pull_tester/) folder contains a script to call
 multiple tests from the [rpc-tests](/qa/rpc-tests/) folder.
 
 Every pull request to the bitcoin repository is built and run through
@@ -26,23 +26,23 @@ Running tests
 =============
 
 First set directories for Ocean source, Ocean build and Guardnode in
-`guardnode/qa/pull-tester/tests_config.py`. Default is Home folder.
+`guardnode/qa/pull_tester/tests_config.py`. Default is Home folder.
 
 You can run any single test by calling
 
-    qa/pull-tester/rpc-tests.py <testname>
+    qa/pull_tester/rpc-tests.py <testname>
 
 Or you can run any combination of tests by calling
 
-    qa/pull-tester/rpc-tests.py <testname1> <testname2> <testname3> ...
+    qa/pull_tester/rpc-tests.py <testname1> <testname2> <testname3> ...
 
 Run the regression test suite with
 
-    qa/pull-tester/rpc-tests.py
+    qa/pull_tester/rpc-tests.py
 
 Run all possible tests with
 
-    qa/pull-tester/rpc-tests.py -extended
+    qa/pull_tester/rpc-tests.py -extended
 
 By default, tests will be run in parallel. To specify how many jobs to run,
 append `-parallel=n` (default n=4).
@@ -64,7 +64,7 @@ Possible options, which apply to each individual test run:
 ```
 
 If you set the environment variable `PYTHON_DEBUG=1` you will get some debug
-output (example: `PYTHON_DEBUG=1 qa/pull-tester/rpc-tests.py wallet`).
+output (example: `PYTHON_DEBUG=1 qa/pull_tester/rpc-tests.py wallet`).
 
 A 200-block -regtest blockchain and wallets for four nodes
 is created the first time a regression test is run and

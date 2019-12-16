@@ -17,7 +17,7 @@ than:
       interface.
 
 For a description of arguments recognized by test scripts, see
-`qa/pull-tester/test_framework/test_framework.py:BitcoinTestFramework.main`.
+`qa/pull_tester/test_framework/test_framework.py:BitcoinTestFramework.main`.
 
 """
 
@@ -29,7 +29,7 @@ import subprocess
 import tempfile
 import re
 
-sys.path.append("qa/pull-tester/")
+sys.path.append("qa/pull_tester/")
 from tests_config import *
 
 BOLD = ("","")
@@ -103,7 +103,7 @@ if ENABLE_ZMQ:
 
 testScripts = [
     'bidding.py',
-    'input-args.py'
+    'initialise.py'
 ]
 if ENABLE_ZMQ:
     testScripts.append('zmq_test.py')
@@ -226,7 +226,7 @@ class RPCTestHandler:
 
 class RPCCoverage(object):
     """
-    Coverage reporting utilities for pull-tester.
+    Coverage reporting utilities for pull_tester.
 
     Coverage calculation works by having each test script subprocess write
     coverage files into a particular directory. These files contain the RPC
