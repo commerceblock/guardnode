@@ -4,6 +4,9 @@ from decimal import *
 
 DEFAULT_BID_FEE = Decimal("0.0001")
 
+def connect(host, user, pw):
+    return authproxy.AuthServiceProxy("http://%s:%s@%s"% (user, pw, host))
+
 class BidHandler():
     def __init__(self, ocean, bid_limit, bid_fee):
         self.bid_limit = bid_limit
@@ -80,4 +83,6 @@ class BidHandler():
             address = self.service_ocean.decoderawtransaction(signed_raw_bid_tx['hex'])["vout"][0]["scriptPubKey"]["hex"]
             self.service_ocean.importaddress(address)
 
-            return self.service_ocean.sendrawtransaction(signed_raw_bid_tx["hex"])
+            bid_txid = self.service_ocean.sendrawtransaction(signed_raw_bid_tx["hex"])
+            self.logger.info("Bid {} submitted".format(bid_txid))
+            return bid_txid
