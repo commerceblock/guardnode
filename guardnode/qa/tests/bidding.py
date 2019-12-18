@@ -1,12 +1,30 @@
 #!/usr/bin/env python3
 
-"""test input args perform check correctly
+"""test bidding functionality
 
 """
-import subprocess
+import imp
+import sys
 
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.util import *
+# TODO fix imports - had to force this because guardnode.bid isnt recognised
+bid = imp.load_source('bid', 'guardnode/bid.py')
+from bid import *
+
+class Args:
+    def __init__(self,ocean):
+        self.ocean = ocean
+        self.bid_fee = Decimal("0.0001")
+        self.bid_limit = 15
+        self.service_ocean = ocean
+        self.logger = logging.getLogger("Bid")
+        self.logger.disabled = True # supress output so warnings dont cause test to
+                                    # when error is expected behaviour
+    def check_locktime(self,txid):
+        return BidHandler.check_locktime(self,txid)
+    def coin_selection(self, auctionprice):
+        return BidHandler.coin_selection(self, auctionprice)
 
 class BiddingTest(BitcoinTestFramework):
 
@@ -33,78 +51,76 @@ class BiddingTest(BitcoinTestFramework):
         self.sync_all()
         genesis = self.nodes[0].getblockhash(0)
 
-        # start guardnode
-        bidaddr = self.nodes[0].getnewaddress()
-        bidpubkey = self.nodes[0].validateaddress(bidaddr)["pubkey"]
-        guardnode = start_guardnode(self.options.tmpdir,["--bidpubkey",bidpubkey])
+        args = Args(self.nodes[0]) # dummy args instance
 
-        # Test err on no requests
-        time.sleep(WAIT_FOR_ERROR)
-        assert(GN_log_contains(self.options.tmpdir,'No active requests for genesis: '+genesis))
+        # Test check_locktime
+        txid = self.nodes[0].sendtoaddress(self.nodes[0].getnewaddress(),5,"","",True,"CBT")
+        assert(BidHandler.check_locktime(args,txid))
+        # make bid out of new tx
+        tx = self.nodes[0].decoderawtransaction(self.nodes[0].getrawtransaction(txid))
+        vout = 0 if tx["vout"][1]["scriptPubKey"]["type"] == "fee" else 1
+        value = float(tx["vout"][vout]["value"]) - 2.0 - 0.001
+        addr = self.nodes[0].getnewaddress()
+        pubkey = self.nodes[0].validateaddress(addr)["pubkey"]
+        endBlockHeight = self.nodes[0].getblockcount() + 1
+        bidtxraw = self.nodes[0].createrawbidtx([{"txid":txid,"vout":vout}],{"feePubkey":pubkey,"pubkey":pubkey,
+            "value":value,"change":2,"changeAddress":addr,"fee":0.001,"endBlockHeight":endBlockHeight,"requestTxid":txid})
+        bidtxid = self.nodes[0].sendrawtransaction(self.nodes[0].signrawtransaction(bidtxraw)["hex"])
+        bidtx = self.nodes[0].decoderawtransaction(bidtxraw)
+        assert_not(BidHandler.check_locktime(args,bidtxid)) # Check invalid locktime
+        self.nodes[0].generate(1)
+        assert(BidHandler.check_locktime(args,bidtxid)) # Check valid locktime
 
-        # Make request
+
+        # Test coin_selection()
+        # check no available outputs
+        args.service_ocean = self.nodes[1] # node has no spendable outputs
+        bid_inputs, input_sum = BidHandler.coin_selection(args,1)
+        assert_not(bid_inputs)
+        assert_not(input_sum)
+        # check full amount reached when no single utxo covers full amount
+        for i in range(5):
+            self.nodes[0].sendtoaddress(self.nodes[1].getnewaddress(),0.4,"","",True,"CBT")
+        self.nodes[0].generate(1)
+        self.sync_all()
+        bid_inputs, _ = BidHandler.coin_selection(args,Decimal(1.9))
+        assert_equal(len(bid_inputs),5)
+        args.service_ocean = self.nodes[0] # node with plenty of UTXOs
+        bid_inputs,_ = BidHandler.coin_selection(args,10)
+        assert(len(bid_inputs)) # Should have found single input to cover auctionprice (10)
+        # Import address so TX_LOCKED_MULTISIG output can be spent from
+        address = bidtx["vout"][0]["scriptPubKey"]["hex"]
+        self.nodes[0].importaddress(address)
+        bid_inputs,input_sum = BidHandler.coin_selection(args,Decimal(1.9))
+        assert_equal(bid_inputs[0]["txid"],bidtxid) # should use bidtx TX_LOCKED_MULTISIG output
+        assert_equal('%.3f'%input_sum,'%.3f'%bidtx["vout"][bid_inputs[0]["vout"]]["value"])
+        bid_inputs,input_sum = BidHandler.coin_selection(args,209993)
+        assert_equal(bid_inputs[0]["txid"],bidtxid) # should use bidtx TX_LOCKED_MULTISIG
+        assert_greater_than(len(bid_inputs),1)      # and others to fill remaining fee amount
+        assert_greater_than(input_sum, 209993)
+
+
+        # Test do_request_bid() correctly forming bid
         requesttxid = make_request(self.nodes[0])
         self.nodes[0].generate(1)
-        assert_equal(len(self.nodes[0].getrequests()),1)
-        time.sleep(WAIT_FOR_WORK) # let guardnode loop
-        assert(GN_log_contains(self.options.tmpdir,'Found request: '))  # found request log entry
-        assert(GN_log_contains(self.options.tmpdir,requesttxid))        # with txid
-
+        request = self.nodes[0].getrequests()[0]
+        blockcount = self.nodes[0].getblockcount()
+        # Test too late for bid request
+        request["startBlockHeight"] = blockcount-1
+        assert_equal(BidHandler.do_request_bid(args,request,pubkey),None)
+        request["startBlockHeight"] = blockcount+10
+        # Test auction price too high
+        request2 = request.copy()
+        request2["auctionPrice"] = 16
+        assert_equal(BidHandler.do_request_bid(args,request2,pubkey),None)
         # Test bid placed
-        time.sleep(WAIT_FOR_WORK) # give time for guardnode to make bid
+        bidtxid = BidHandler.do_request_bid(args,request,pubkey)
+        assert_is_hex_string(bidtxid)
         self.nodes[0].generate(1)
-        # check bid exists in network and GN logs
-        bid1 = self.nodes[0].getrequestbids(requesttxid)["bids"][0]
-        assert_equal(bid1["feePubKey"],bidpubkey) # correct bidpubkey used
-        assert(GN_log_contains(self.options.tmpdir,"Bid "+bid1["txid"]+" submitted"))
+        assert_equal(bidtxid,self.nodes[0].getrequestbids(self.nodes[0].getrequests()[0]["txid"])["bids"][0]["txid"])
 
-        # Test next bid uses TX_LOCKED_MULTISIG output => uses previous bids utxo
-        self.nodes[0].generate(19) # request over
-        assert(not self.nodes[0].getrequests())
-        requesttxid = make_request(self.nodes[0],4) # new request with price 4 to ensure TX_LOCKED_MULTISIG output is used
-        self.nodes[0].generate(1)
-        time.sleep(WAIT_FOR_WORK) # give time for guardnode to make bid
-        self.nodes[0].generate(1)
-        bid2 = self.nodes[0].getrequestbids(requesttxid)["bids"][0] # ensure bid exists
-        assert_equal(bid2["feePubKey"],bidpubkey) # correct bidpubkey used
-        assert(GN_log_contains(self.options.tmpdir,"Bid "+bid2["txid"]+" submitted")) # check GN logs
-        # check bid2 input is bid1 output
-        bidtx2 = self.nodes[0].decoderawtransaction(self.nodes[0].getrawtransaction(bid2["txid"]))
-        assert_equal(len(bidtx2["vin"]),1)
-        assert_equal(bid1["txid"],bidtx2["vin"][0]["txid"])
 
-        # Test coin selection fills amount when TX_LOCKED_MULTISIG outputs not
-        # sufficient
-        self.nodes[0].generate(19) # request over
-        assert(not self.nodes[0].getrequests())
-        # new request
-        requesttxid = make_request(self.nodes[0])
-        self.nodes[0].generate(1)
-        time.sleep(WAIT_FOR_WORK) # give time for guardnode to make bid
-        self.nodes[0].generate(1)
-        bid3 = self.nodes[0].getrequestbids(requesttxid)["bids"][0] # ensure bid exists
-        assert_equal(bid3["feePubKey"],bidpubkey) # correct bidpubkey used
-        assert(GN_log_contains(self.options.tmpdir,"Bid "+bid3["txid"]+" submitted")) # check GN logs
 
-        # Test fresh bidpubkey used if bidpubkey not provided initially
-        stop_guardnode(guardnode)
-        guardnode = start_guardnode(self.options.tmpdir)
-        time.sleep(WAIT_FOR_WORK) # allow set up time
-        assert(GN_log_contains(self.options.tmpdir,"Fee pubkey will be freshly generated each bid")) # check GN logs
-        # make 3 bids on seperate requests and store
-        bids = []
-        for i in range(3):
-            self.nodes[0].generate(19) # ensure currenct request over
-            assert(not self.nodes[0].getrequests())
-            requesttxid = make_request(self.nodes[0],5)
-            self.nodes[0].generate(1)
-            time.sleep(WAIT_FOR_WORK) # give time for guardnode to make bid
-            self.nodes[0].generate(1)
-            bids.append(self.nodes[0].getrequestbids(requesttxid)["bids"][0])
-
-        assert(bids[0]["feePubKey"] != bids[1]["feePubKey"])
-        assert(bids[0]["feePubKey"] != bids[2]["feePubKey"])
-        assert(bids[1]["feePubKey"] != bids[2]["feePubKey"])
 
 if __name__ == '__main__':
     BiddingTest().main()

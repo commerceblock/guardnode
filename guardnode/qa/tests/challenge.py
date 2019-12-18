@@ -16,14 +16,14 @@ from guardnode.bid import *
 
 # dummy Challenge instance to pass into functions for testing
 class Args:
-    def __init__(self,genesis,ocean):
+    def __init__(self,ocean):
         self.key = None
         self.ocean = ocean
         self.args = InputArgs()
-        self.genesis = genesis
         self.service_ocean = ocean
         self.client_fee_pubkey = None
         self.rev_challengeasset = None
+        self.genesis = ocean.getblockhash(0)
         self.logger = logging.getLogger("Guardnode")
     def set_key(self,addr):
         Challenge.set_key(self, addr)
@@ -61,9 +61,11 @@ class ChallengeTest(BitcoinTestFramework):
         self.sync_all()
         genesis = self.nodes[0].getblockhash(0)
 
+        args = Args(self.nodes[0]) # dummy args
+
+
         # Test check_for_request method
-        args = Args(genesis, self.nodes[0])
-        assert_equal(Challenge.check_for_request(args),False) # return False whenno request
+        assert_not(Challenge.check_for_request(args)) # return False whenno request
 
         # Make request
         requesttxid = make_request(self.nodes[0])
@@ -71,7 +73,6 @@ class ChallengeTest(BitcoinTestFramework):
         assert_equal(len(self.nodes[0].getrequests()),1)
 
         # Test check_for_request method returns request
-        args = Args(genesis, self.nodes[0])
         assert_equal(Challenge.check_for_request(args)["genesisBlock"], genesis) # return request
 
         # Make another request with different genesis
@@ -95,7 +96,6 @@ class ChallengeTest(BitcoinTestFramework):
 
 
         # Test gen_feepubkey() and set_key()
-        args = Args(genesis, self.nodes[0])
         addr = Challenge.gen_feepubkey(args)
         assert_is_hex_string(args.client_fee_pubkey) # check exists
         # Check resulting priv key corresponds to fee pub key
@@ -130,7 +130,7 @@ class ChallengeTest(BitcoinTestFramework):
         assert_equal(Challenge.await_challenge(args, request),None)
         # Check request ended
         self.nodes[0].generate(2)
-        assert_equal(Challenge.await_challenge(args, request),False)
+        assert(Challenge.await_challenge(args, request))
 
 
 if __name__ == '__main__':
