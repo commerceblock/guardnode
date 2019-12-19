@@ -25,6 +25,11 @@ class BidHandler():
                 return False
         return True
 
+    # Select coins to fund bid transaction as:
+    # Until desired sum is reached:
+    #   1. Include TX_LOCKED_MULTISIG outputs of any size
+    #   2. Include single regular output of size large enough to cover (input sum - result of 1.)
+    #   3. Include all other outputs
     def coin_selection(self, auctionprice):
         list_unspent = self.service_ocean.listunspent(1, 9999999, [], True, "CBT")
         input_sum = Decimal(0.0)
@@ -60,18 +65,17 @@ class BidHandler():
             return False, False
         return bid_inputs, input_sum
 
+    # construct, sign and send bid transaction
     def do_request_bid(self, request, client_fee_pubkey):
         if request["startBlockHeight"] <= self.service_ocean.getblockcount():
             self.logger.warn("Too late to bid for request. Service already started")
         elif request["auctionPrice"] > self.bid_limit:
             self.logger.warn("Auction price {} too high for guardnode bid limit {}".format(request["auctionPrice"], self.bid_limit))
         else:
-            # do bidding
             # find inputs
             bid_inputs, input_sum = self.coin_selection(request["auctionPrice"])
             if not bid_inputs:
                 return
-
             # find outputs
             bid_outputs = {}
             bid_outputs["endBlockHeight"] = request["endBlockHeight"]
@@ -82,6 +86,8 @@ class BidHandler():
             bid_outputs["change"] = Decimal(input_sum - request["auctionPrice"] - self.bid_fee)
             bid_outputs["changeAddress"] = self.service_ocean.getnewaddress()
             bid_outputs["fee"] = self.bid_fee
+
+            # Make, sign and send transaciton
             raw_bid_tx = self.service_ocean.createrawbidtx(bid_inputs, bid_outputs)
             signed_raw_bid_tx = self.service_ocean.signrawtransaction(raw_bid_tx)
             if signed_raw_bid_tx["complete"] == False:

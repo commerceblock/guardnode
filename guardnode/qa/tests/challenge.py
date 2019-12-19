@@ -3,22 +3,19 @@
 """test methods of Challenge class
 
 """
-import subprocess
-import imp
-import sys
+import logging
 
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.util import *
-from test_framework.key import CPubKey, CECKey
-from test_framework.mininode import sha256
+from test_framework.key import CPubKey
 from guardnode.challenge import Challenge, asset_in_block
-from guardnode.bid import *
 
 # dummy Challenge instance to pass into functions for testing
 class Args:
     def __init__(self,ocean):
         self.key = None
         self.ocean = ocean
+        self.bid_txid = 12345
         self.args = InputArgs()
         self.service_ocean = ocean
         self.client_fee_pubkey = None
@@ -36,23 +33,21 @@ class InputArgs():
     def __init__(self):
         self.serviceblocktime = 1
 
-class ChallengeTest(BitcoinTestFramework):
 
+class ChallengeTest(BitcoinTestFramework):
     def __init__(self):
         super().__init__()
         self.setup_clean_chain = True
-        self.num_nodes = 2
+        self.num_nodes = 1
         self.extra_args = [["-txindex=1 -initialfreecoins=50000000000000", "-policycoins=50000000000000",
     "-permissioncoinsdestination=76a914bc835aff853179fa88f2900f9003bb674e17ed4288ac",
     "-initialfreecoinsdestination=76a914bc835aff853179fa88f2900f9003bb674e17ed4288ac",
     "-challengecoinsdestination=76a914bc835aff853179fa88f2900f9003bb674e17ed4288ac",
-    "-debug=1"] for i in range(2)]
+    "-debug=1"]]
 
     def setup_network(self, split=False):
         self.nodes = start_nodes(self.num_nodes, self.options.tmpdir, self.extra_args)
-        connect_nodes_bi(self.nodes,0,1)
         self.is_network_split=False
-        self.sync_all()
 
     def run_test(self):
         # init node
@@ -63,9 +58,8 @@ class ChallengeTest(BitcoinTestFramework):
 
         args = Args(self.nodes[0]) # dummy args
 
-
         # Test check_for_request method
-        assert_not(Challenge.check_for_request(args)) # return False whenno request
+        assert_not(Challenge.check_for_request(args)) # return False when no request
 
         # Make request
         requesttxid = make_request(self.nodes[0])
@@ -113,7 +107,7 @@ class ChallengeTest(BitcoinTestFramework):
         # test none found in empty block
         for asset in assets:
             assert_equal(asset_in_block(self.nodes[0], asset, self.nodes[0].getblockcount()), None)
-        # test invalid asset argument size
+        # test invalid asset argument
         assert_equal(asset_in_block(self.nodes[0], None, 0), None)
         assert_equal(asset_in_block(self.nodes[0], 1234, 0), None)
         assert_equal(asset_in_block(self.nodes[0], 0, 0), None)
@@ -127,10 +121,20 @@ class ChallengeTest(BitcoinTestFramework):
         assert_equal(Challenge.await_challenge(args, request),True)
         # Check Challenge asset check called
         self.nodes[0].generate(1)
-        assert_equal(Challenge.await_challenge(args, request),None)
+        assert_equal(Challenge.await_challenge(args, request),True)
         # Check request ended
         self.nodes[0].generate(2)
-        assert(Challenge.await_challenge(args, request))
+        assert_not(Challenge.await_challenge(args, request))
+
+
+        # Test generate_response()
+        data, headers = Challenge.generate_response(args, txid)
+        assert(data)
+        assert(headers)
+        # Check sig against public key
+        pubkey = CPubKey(hex_str_to_bytes(args.client_fee_pubkey))
+        sig = data[data.find("sig")+7:-2]
+        assert(pubkey.verify(hex_str_to_rev_bytes(txid),hex_str_to_bytes(sig)))
 
 
 if __name__ == '__main__':

@@ -3,14 +3,11 @@
 """test bidding functionality
 
 """
-import imp
-import sys
 
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.util import *
-# TODO fix imports - had to force this because guardnode.bid isnt recognised
-bid = imp.load_source('bid', 'guardnode/bid.py')
-from bid import *
+from guardnode.bid import *
+
 
 class Args:
     def __init__(self,ocean):
@@ -82,18 +79,17 @@ class BiddingTest(BitcoinTestFramework):
         for i in range(5):
             self.nodes[0].sendtoaddress(self.nodes[1].getnewaddress(),0.4,"","",True,"CBT")
         self.nodes[0].generate(1)
-        self.sync_all()
         bid_inputs, _ = BidHandler.coin_selection(args,Decimal(1.9))
         assert_equal(len(bid_inputs),5)
         args.service_ocean = self.nodes[0] # node with plenty of UTXOs
         bid_inputs,_ = BidHandler.coin_selection(args,10)
-        assert(len(bid_inputs)) # Should have found single input to cover auctionprice (10)
+        assert_equal(len(bid_inputs),1) # Should have found single input to cover auctionprice (10)
         # Import address so TX_LOCKED_MULTISIG output can be spent from
         address = bidtx["vout"][0]["scriptPubKey"]["hex"]
         self.nodes[0].importaddress(address)
         bid_inputs,input_sum = BidHandler.coin_selection(args,Decimal(1.9))
         assert_equal(bid_inputs[0]["txid"],bidtxid) # should use bidtx TX_LOCKED_MULTISIG output
-        assert_equal('%.3f'%input_sum,'%.3f'%bidtx["vout"][bid_inputs[0]["vout"]]["value"])
+        assert_equal('%.3f'%input_sum,'%.3f'%bidtx["vout"][bid_inputs[0]["vout"]]["value"]) # Check amount
         bid_inputs,input_sum = BidHandler.coin_selection(args,209993)
         assert_equal(bid_inputs[0]["txid"],bidtxid) # should use bidtx TX_LOCKED_MULTISIG
         assert_greater_than(len(bid_inputs),1)      # and others to fill remaining fee amount
@@ -101,7 +97,7 @@ class BiddingTest(BitcoinTestFramework):
 
 
         # Test do_request_bid() correctly forming bid
-        requesttxid = make_request(self.nodes[0])
+        make_request(self.nodes[0])
         self.nodes[0].generate(1)
         request = self.nodes[0].getrequests()[0]
         blockcount = self.nodes[0].getblockcount()
@@ -110,16 +106,14 @@ class BiddingTest(BitcoinTestFramework):
         assert_equal(BidHandler.do_request_bid(args,request,pubkey),None)
         request["startBlockHeight"] = blockcount+10
         # Test auction price too high
-        request2 = request.copy()
-        request2["auctionPrice"] = 16
-        assert_equal(BidHandler.do_request_bid(args,request2,pubkey),None)
+        request["auctionPrice"] = 16
+        assert_equal(BidHandler.do_request_bid(args,request,pubkey),None)
+        request["auctionPrice"] = 5
         # Test bid placed
         bidtxid = BidHandler.do_request_bid(args,request,pubkey)
         assert_is_hex_string(bidtxid)
         self.nodes[0].generate(1)
         assert_equal(bidtxid,self.nodes[0].getrequestbids(self.nodes[0].getrequests()[0]["txid"])["bids"][0]["txid"])
-
-
 
 
 if __name__ == '__main__':

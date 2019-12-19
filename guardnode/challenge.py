@@ -7,12 +7,16 @@ import base58
 from time import sleep
 from .daemon import DaemonThread
 from .bid import BidHandler
-from .qa.tests.test_framework import util, address, key, authproxy
+from .qa.tests.test_framework.util import hex_str_rev_hex_str, bytes_to_hex_str, hex_str_to_rev_bytes
+from .qa.tests.test_framework.address import key_to_p2pkh_version
+from .qa.tests.test_framework.key import CECKey
+from .qa.tests.test_framework.authproxy import AuthServiceProxy
+
 
 def connect(host, user, pw):
-    return authproxy.AuthServiceProxy("http://%s:%s@%s"% (user, pw, host))
+    return AuthServiceProxy("http://%s:%s@%s"% (user, pw, host))
 
-# Find assetid for chains challenge asset
+# return assetid of challenge asset in given chain
 def get_challenge_asset(ocean):
     genesis_block = ocean.getblock(ocean.getblockhash(0))
     for txid in genesis_block["tx"]:
@@ -39,7 +43,7 @@ class Challenge(DaemonThread):
     def set_key(self, addr):
         priv = self.service_ocean.dumpprivkey(addr)
         decoded = base58.b58decode(priv)[1:-5] # check for compressed or not
-        self.key = key.CECKey()
+        self.key = CECKey()
         self.key.set_secretbytes(decoded)
         self.key.set_compressed(True)
 
@@ -64,7 +68,7 @@ class Challenge(DaemonThread):
         # get challenge asset hash
         self.args.challengeasset = get_challenge_asset(self.ocean)
         try:
-            self.rev_challengeasset = util.hex_str_rev_hex_str(self.args.challengeasset)
+            self.rev_challengeasset = hex_str_rev_hex_str(self.args.challengeasset)
         except AttributeError: # if self.args.challengeasset == None
             self.logger.error("No Challenge asset found in client chain")
             sys.exit(1)
@@ -73,12 +77,10 @@ class Challenge(DaemonThread):
         # - if set then use for each bid
         # - if not set generate new and use for each bid
         # - if --uniquebidpubkeys set ignore --bidpubkey and generate new key for each bid
-        # self.client_fee_pubkey = None
         if self.args.uniquebidpubkeys:
             self.uniquebidpubkeys = True
             self.logger.info("Fee pubkey will be freshly generated each bid")
         else:
-            self.uniquebidpubkeys = False
             if args.bidpubkey is None:
                 addr = self.gen_feepubkey()
             else:
@@ -89,7 +91,7 @@ class Challenge(DaemonThread):
                     self.logger.error("Error getting address prefix - check node version")
                     sys.exit(1)
                 # test valid key and imported
-                addr = address.key_to_p2pkh_version(self.client_fee_pubkey, args.nodeaddrprefix)
+                addr = key_to_p2pkh_version(self.client_fee_pubkey, args.nodeaddrprefix)
                 validate = self.ocean.validateaddress(addr)
                 if validate['ismine'] == False:
                     self.logger.error("Key for address {} is missing from the wallet".format(addr))
@@ -101,35 +103,42 @@ class Challenge(DaemonThread):
         # Init bid handler
         self.bidhandler = BidHandler(self.service_ocean, args.bidlimit, args.bidfee)
 
-    # MAIN RUN METHODS
-    def check_for_request(self):
-        requests = self.service_ocean.getrequests(self.genesis)
-        if len(requests) > 0:
-            self.logger.info("Found request: {}".format(requests[0]))
-            return requests[0]
-        return False
 
-    # await request and place bid
+    # Main loop: await request. Sub loop: run search for challenge
     def run(self):
         self.last_block_height = 0
         # Wait for request
         while not self.stop_event.is_set():
             request = self.check_for_request()
             if request:
-                if self.uniquebidpubkeys:
+                if hasattr(self,"uniquebidpubkeys"):
                     self.gen_feepubkey() # Gen new pubkey if required
-                bid_txid = self.bidhandler.do_request_bid(request, self.client_fee_pubkey)
-                if bid_txid is not None: # bid tx sent
+                self.bid_txid = self.bidhandler.do_request_bid(request, self.client_fee_pubkey)
+                if self.bid_txid is not None: # bid tx sent
                     while not self.stop_event.is_set(): # Wait for challenge on bid
                         if not self.await_challenge(request):
                             break   # request ended
+                        sleep(0.1) # seconds
                 else:
                     sleep(self.args.serviceblocktime)
             else:
                 self.logger.info("No active requests for genesis: {}".format(self.genesis))
                 sleep(self.args.serviceblocktime)
 
-    # Wait for challenge. Return False if service period over, respond to challenge if found
+    # look for and return active request in service chain
+    def check_for_request(self):
+        try:
+            requests = self.service_ocean.getrequests(self.genesis)
+        except Exception as e:
+            self.logger.error(e)
+            self.error = e
+        if len(requests) > 0:
+            self.logger.info("Found request: {}".format(requests[0]))
+            return requests[0]
+        return False
+
+    # Wait for challenge. Return False if service period over, True to continue looping.
+    # Respond to challenge if found
     def await_challenge(self, request):
         try:
             block_height = self.ocean.getblockcount()
@@ -142,23 +151,19 @@ class Challenge(DaemonThread):
                 return True
             elif block_height > self.last_block_height:
                 self.logger.info("Current block height: {}".format(block_height))
-                txid = asset_in_block(self.ocean, self.rev_challengeasset, block_height)
-                if txid != None:
+                challenge_txid = asset_in_block(self.ocean, self.rev_challengeasset, block_height)
+                if challenge_txid != None:
                     self.logger.info("Challenge found at height: {}".format(block_height))
-                    self.respond(bid_txid, txid)
+                    self.respond(challenge_txid)
                     self.last_block_height = block_height
+                return True
         except Exception as e:
             self.logger.error(e)
             self.error = e
-            sleep(0.1) # seconds
 
     # respond to challenge
-    def respond(self, bid_txid, txid):
-        sig_hex = util.bytes_to_hex_str(self.key.sign(util.hex_str_to_rev_bytes(txid)))
-
-        data = '{{"txid": "{}", "pubkey": "{}", "hash": "{}", "sig": "{}"}}'.\
-            format(bid_txid, self.client_fee_pubkey, txid, sig_hex)
-        headers = {'content-type': 'application/json', 'Accept-Charset': 'UTF-8'}
+    def respond(self, challenge_txid):
+        data, headers = self.generate_response(challenge_txid)
         try:
             r = requests.post(self.url, data=data, headers=headers)
         except Exception as e:
@@ -166,6 +171,15 @@ class Challenge(DaemonThread):
             self.logger.error("Could not connect to coordinator to send response data:\n{}".format(data))
             return
 
-        self.logger.info("response sent\nsignature:\n{}\ntxid:\n{}".format(sig_hex, txid))
+        self.logger.info("Response sent\nsignature:\n{}\ntxid:\n{}".format(sig_hex, challenge_txid))
         if r.status_code != 200:
             self.logger.error(r.content)
+
+    def generate_response(self, challenge_txid):
+        sig_hex = bytes_to_hex_str(self.key.sign(hex_str_to_rev_bytes(challenge_txid)))
+
+        data = '{{"txid": "{}", "pubkey": "{}", "hash": "{}", "sig": "{}"}}'.\
+        format(self.bid_txid, self.client_fee_pubkey, challenge_txid, sig_hex)
+        headers = {'content-type': 'application/json', 'Accept-Charset': 'UTF-8'}
+
+        return data, headers

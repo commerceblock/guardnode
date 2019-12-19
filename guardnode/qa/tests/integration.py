@@ -1,18 +1,13 @@
 #!/usr/bin/env python3
 
-"""test bidding functionality
+"""Test full guardnode functionality
 
+    Spawn guardnode instances and check logs for expected behaviour
 """
-import subprocess
-import imp
-import sys
-import logging
 
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.util import *
-# TODO fix imports - had to force this because guardnode.bid isnt recognised
-bid = imp.load_source('bid', 'guardnode/bid.py')
-from bid import *
+
 
 class BiddingTest(BitcoinTestFramework):
 
@@ -23,7 +18,7 @@ class BiddingTest(BitcoinTestFramework):
         self.extra_args = [["-txindex=1 -initialfreecoins=50000000000000", "-policycoins=50000000000000",
     "-permissioncoinsdestination=76a914bc835aff853179fa88f2900f9003bb674e17ed4288ac",
     "-initialfreecoinsdestination=76a914bc835aff853179fa88f2900f9003bb674e17ed4288ac",
-    "-challengecoinsdestination=76a91415de997afac9857dc97cdd43803cf1138f3aaef788ac",
+    "-challengecoinsdestination=76a914bc835aff853179fa88f2900f9003bb674e17ed4288ac",
     "-debug=1"] for i in range(2)]
 
     def setup_network(self, split=False):
@@ -92,11 +87,10 @@ class BiddingTest(BitcoinTestFramework):
         assert_equal(bid3["feePubKey"],bidpubkey) # correct bidpubkey used
         assert(GN_log_contains(self.options.tmpdir,"Bid "+bid3["txid"]+" submitted")) # check GN logs
 
-        # Test fresh bidpubkey used if bidpubkey not provided initially
+        # Test fresh bidpubkeys used each bid when uniquebidpubkeys flag provided
         stop_guardnode(guardnode)
-        guardnode = start_guardnode(self.options.tmpdir,0)
+        guardnode = start_guardnode(self.options.tmpdir,0,["--uniquebidpubkeys"])
         time.sleep(WAIT_FOR_WORK) # allow set up time
-        assert(GN_log_contains(self.options.tmpdir,"Fee pubkey will be freshly generated each bid")) # check GN logs
         # make 3 bids on seperate requests and store
         bids = []
         for i in range(3):
@@ -111,6 +105,17 @@ class BiddingTest(BitcoinTestFramework):
         assert(bids[0]["feePubKey"] != bids[1]["feePubKey"])
         assert(bids[0]["feePubKey"] != bids[2]["feePubKey"])
         assert(bids[1]["feePubKey"] != bids[2]["feePubKey"])
+
+        # Test recognition and response to challenge
+        self.nodes[0].generate(15) # bring into service period
+        self.nodes[0].sendtoaddress(self.nodes[0].getnewaddress(),1,"","",True,"CHALLENGE") # send challenge asset tx
+        self.nodes[0].generate(1)
+        time.sleep(WAIT_FOR_WORK)
+        GN_log_print(self.options.tmpdir)
+        assert(GN_log_contains(self.options.tmpdir,'Challenge found at height: '+str(self.nodes[0].getblockcount())))
+        time.sleep(WAIT_FOR_WORK)
+        assert(GN_log_contains(self.options.tmpdir,'Could not connect to coordinator to send response data:'))
+
 
 if __name__ == '__main__':
     BiddingTest().main()

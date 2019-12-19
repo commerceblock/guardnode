@@ -3,8 +3,6 @@
 """test initialisation - getting sidechain info and checking input args
 
 """
-import subprocess
-import guardnode
 
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.util import *
@@ -43,7 +41,7 @@ class InitialisationTest(BitcoinTestFramework):
         assert(GN_log_contains(self.options.tmpdir,'No Challenge asset found in client chain'))
 
         # The following tests are for initialisation of genfeepubkey functionality only.
-        # Tests for whether the same bidpubkey is actually used for each bid are in bidding.py.
+        # Testing for which bidpubkey are used for each bid are in integration.py.
         # Test activation of genfeepubkey flag
         guardnode = start_guardnode(self.options.tmpdir,0,["--uniquebidpubkeys"])
         time.sleep(WAIT_FOR_WORK) # allow set up time
@@ -72,7 +70,11 @@ class InitialisationTest(BitcoinTestFramework):
         time.sleep(WAIT_FOR_ERROR)
         assert(GN_log_contains(self.options.tmpdir,'Error: Odd-length string'))
 
-        # TODO: tests for all input arg checks
+        # Test unowned bidpubkey given
+        start_guardnode(self.options.tmpdir,0,["--bidpubkey","023785ce7924ff8a928d2e747194ca970ba21576f8d4de96662c58d456eda7cf65"])
+        time.sleep(WAIT_FOR_ERROR)
+        assert(GN_log_contains(self.options.tmpdir,'is missing from the wallet'))
+
 
 
 if __name__ == '__main__':

@@ -41,7 +41,7 @@ PORT_RANGE = 5000
 
 BITCOIND_PROC_WAIT_TIMEOUT = 60
 
-WAIT_FOR_ERROR = 0.5 # sleep to allow guardnode to produce error
+WAIT_FOR_ERROR = 1 # sleep to allow guardnode to produce error
 WAIT_FOR_WORK = 2 # sleep to allow guardnode to process
 
 class PortSeed:
