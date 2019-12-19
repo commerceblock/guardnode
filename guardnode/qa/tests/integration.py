@@ -9,7 +9,7 @@ from test_framework.test_framework import BitcoinTestFramework
 from test_framework.util import *
 
 
-class BiddingTest(BitcoinTestFramework):
+class IntegrationTest(BitcoinTestFramework):
 
     def __init__(self):
         super().__init__()
@@ -118,4 +118,4 @@ class BiddingTest(BitcoinTestFramework):
 
 
 if __name__ == '__main__':
-    BiddingTest().main()
+    IntegrationTest().main()

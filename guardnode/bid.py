@@ -4,9 +4,6 @@ from decimal import *
 
 DEFAULT_BID_FEE = Decimal("0.0001")
 
-def connect(host, user, pw):
-    return authproxy.AuthServiceProxy("http://%s:%s@%s"% (user, pw, host))
-
 class BidHandler():
     def __init__(self, ocean, bid_limit, bid_fee):
         self.bid_limit = bid_limit
