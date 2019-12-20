@@ -16,12 +16,20 @@ class Args:
         self.bid_limit = 15
         self.service_ocean = ocean
         self.logger = logging.getLogger("Bid")
+        self.trigger_estimate_fee = False
         self.logger.disabled = True # supress output so warnings dont cause test to
                                     # when error is expected behaviour
     def check_locktime(self,txid):
         return BidHandler.check_locktime(self,txid)
     def coin_selection(self, auctionprice):
         return BidHandler.coin_selection(self, auctionprice)
+    def estimate_fee(self,signed_raw_tx):
+        if self.trigger_estimate_fee:
+            # same calculation as in actual function
+            feeperkb = 0.01
+            size = len(signed_raw_tx["hex"].encode())
+            return Decimal(format(feeperkb * (size / 1000), ".8g"))
+        return False
 
 class BiddingTest(BitcoinTestFramework):
 
@@ -114,7 +122,23 @@ class BiddingTest(BitcoinTestFramework):
         assert_is_hex_string(bidtxid)
         self.nodes[0].generate(1)
         assert_equal(bidtxid,self.nodes[0].getrequestbids(self.nodes[0].getrequests()[0]["txid"])["bids"][0]["txid"])
+        # Test estimatefee causes new bid with new fee
+        args.trigger_estimate_fee = True
+        bidtxid = BidHandler.do_request_bid(args,request,pubkey)
+        assert_is_hex_string(bidtxid)
+        self.nodes[0].generate(1)
+        assert_equal(len(self.nodes[0].getrequestbids(self.nodes[0].getrequests()[0]["txid"])["bids"]),2)
+        bidtx = self.nodes[0].decoderawtransaction(self.nodes[0].getrawtransaction(bidtxid))
+        vout = next(item["n"] for item in bidtx["vout"] if item["scriptPubKey"]["type"] == "fee")
+        assert_greater_than(bidtx["vout"][vout]["value"],0.001) # fee in  correct range
+        assert_greater_than(0.01,bidtx["vout"][vout]["value"]) # fee in  correct range
 
+
+        # Test fee estimation
+        # check failure to estimate fee when not enough txs to base estimate on
+        signed_raw_tx = {'hex': '020000000001c1380cd5ab57e656d6c6825139538ab12f5fac71eb8336c3aacc673bb3b9c6cf000000006a4730440220737bd98b89d7c97fa0027d3364a79e71efdf48541c94e8d6cfa3abf7dec71412022060d47ef1f16b6920c8e65cd4bd0d5d58ebb0a55113f09689d05133062510b474012103025ecf586d4284e720ba2994d8d218cc38b7b86a0549fd341ccb399f16f2ca7afeffffff03018af3413eecabe8ace374f6c25efd07c46b72ba9edf77f604d22a023f7bc956a101000000001dcd6500006d0179b175512103bc966cc8a79361de0f864c77cfef7a138942c1d9d645cd069b658c43e08e31952102595a910d6287f79583fcfe50cc15be43b825b596d496ef42d5f2c519707405fc21028767253aedb195fa6874d79c1cc1da4f0807b9f219fc8ad558724d01cc11160453ae018af3413eecabe8ace374f6c25efd07c46b72ba9edf77f604d22a023f7bc956a1010000131953bcc3f0001976a914447b751cb5ebd9162de946f67bff88c81e8cc70b88ac018af3413eecabe8ace374f6c25efd07c46b72ba9edf77f604d22a023f7bc956a1010000000000002710000066000000', 'complete': True}
+        newfee = BidHandler.estimate_fee(args,signed_raw_tx)
+        assert_not(newfee)
 
 if __name__ == '__main__':
     BiddingTest().main()

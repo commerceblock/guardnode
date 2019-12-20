@@ -101,7 +101,7 @@ class Challenge(DaemonThread):
             self.logger.info("Fee address: {} and pubkey: {}".format(addr, self.client_fee_pubkey))
 
         # Init bid handler
-        self.bidhandler = BidHandler(self.service_ocean, args.bidlimit, args.bidfee)
+        self.bidhandler = BidHandler(self.service_ocean, args.bidlimit)
 
 
     # Main loop: await request. Sub loop: run search for challenge
