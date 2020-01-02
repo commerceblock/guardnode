@@ -19,8 +19,8 @@ class Args:
         self.trigger_estimate_fee = False
         self.logger.disabled = True # supress output so warnings dont cause test to
                                     # when error is expected behaviour
-    def check_locktime(self,txid):
-        return BidHandler.check_locktime(self,txid)
+    def check_locktime(self,txid,blockcount):
+        return BidHandler.check_locktime(self,txid,blockcount)
     def coin_selection(self, auctionprice):
         return BidHandler.coin_selection(self, auctionprice)
     def estimate_fee(self,signed_raw_tx):
@@ -59,30 +59,32 @@ class BiddingTest(BitcoinTestFramework):
         args = Args(self.nodes[0]) # dummy args instance
 
         # Test check_locktime
+        blockcount = self.nodes[0].getblockcount()
         txid = self.nodes[0].sendtoaddress(self.nodes[0].getnewaddress(),5,"","",True,"CBT")
-        assert(BidHandler.check_locktime(args,txid))
+        assert(BidHandler.check_locktime(args,txid,blockcount))
         # make bid out of new tx
         tx = self.nodes[0].decoderawtransaction(self.nodes[0].getrawtransaction(txid))
         vout = 0 if tx["vout"][1]["scriptPubKey"]["type"] == "fee" else 1
         value = float(tx["vout"][vout]["value"]) - 2.0 - 0.001
         addr = self.nodes[0].getnewaddress()
         pubkey = self.nodes[0].validateaddress(addr)["pubkey"]
-        endBlockHeight = self.nodes[0].getblockcount() + 1
+        endBlockHeight = blockcount + 1
         bidtxraw = self.nodes[0].createrawbidtx([{"txid":txid,"vout":vout}],{"feePubkey":pubkey,"pubkey":pubkey,
             "value":value,"change":2,"changeAddress":addr,"fee":0.001,"endBlockHeight":endBlockHeight,"requestTxid":txid})
         bidtxid = self.nodes[0].sendrawtransaction(self.nodes[0].signrawtransaction(bidtxraw)["hex"])
         bidtx = self.nodes[0].decoderawtransaction(bidtxraw)
-        assert_not(BidHandler.check_locktime(args,bidtxid)) # Check invalid locktime
+        assert(not BidHandler.check_locktime(args,bidtxid,blockcount)) # Check invalid locktime
         self.nodes[0].generate(1)
-        assert(BidHandler.check_locktime(args,bidtxid)) # Check valid locktime
+        blockcount += 1
+        assert(BidHandler.check_locktime(args,bidtxid,blockcount)) # Check valid locktime
 
 
         # Test coin_selection()
         # check no available outputs
         args.service_ocean = self.nodes[1] # node has no spendable outputs
         bid_inputs, input_sum = BidHandler.coin_selection(args,1)
-        assert_not(bid_inputs)
-        assert_not(input_sum)
+        assert(not bid_inputs)
+        assert(not input_sum)
         # check full amount reached when no single utxo covers full amount
         for i in range(5):
             self.nodes[0].sendtoaddress(self.nodes[1].getnewaddress(),0.4,"","",True,"CBT")
@@ -138,7 +140,7 @@ class BiddingTest(BitcoinTestFramework):
         # check failure to estimate fee when not enough txs to base estimate on
         signed_raw_tx = {'hex': '020000000001c1380cd5ab57e656d6c6825139538ab12f5fac71eb8336c3aacc673bb3b9c6cf000000006a4730440220737bd98b89d7c97fa0027d3364a79e71efdf48541c94e8d6cfa3abf7dec71412022060d47ef1f16b6920c8e65cd4bd0d5d58ebb0a55113f09689d05133062510b474012103025ecf586d4284e720ba2994d8d218cc38b7b86a0549fd341ccb399f16f2ca7afeffffff03018af3413eecabe8ace374f6c25efd07c46b72ba9edf77f604d22a023f7bc956a101000000001dcd6500006d0179b175512103bc966cc8a79361de0f864c77cfef7a138942c1d9d645cd069b658c43e08e31952102595a910d6287f79583fcfe50cc15be43b825b596d496ef42d5f2c519707405fc21028767253aedb195fa6874d79c1cc1da4f0807b9f219fc8ad558724d01cc11160453ae018af3413eecabe8ace374f6c25efd07c46b72ba9edf77f604d22a023f7bc956a1010000131953bcc3f0001976a914447b751cb5ebd9162de946f67bff88c81e8cc70b88ac018af3413eecabe8ace374f6c25efd07c46b72ba9edf77f604d22a023f7bc956a1010000000000002710000066000000', 'complete': True}
         newfee = BidHandler.estimate_fee(args,signed_raw_tx)
-        assert_not(newfee)
+        assert(not newfee)
 
 if __name__ == '__main__':
     BiddingTest().main()

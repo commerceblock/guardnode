@@ -59,7 +59,7 @@ class ChallengeTest(BitcoinTestFramework):
         args = Args(self.nodes[0]) # dummy args
 
         # Test check_for_request method
-        assert_not(Challenge.check_for_request(args)) # return False when no request
+        assert(not Challenge.check_for_request(args)) # return False when no request
 
         # Make request
         requesttxid = make_request(self.nodes[0])
@@ -124,7 +124,7 @@ class ChallengeTest(BitcoinTestFramework):
         assert_equal(Challenge.await_challenge(args, request),True)
         # Check request ended
         self.nodes[0].generate(2)
-        assert_not(Challenge.await_challenge(args, request))
+        assert(not Challenge.await_challenge(args, request))
 
 
         # Test generate_response()

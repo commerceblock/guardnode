@@ -35,7 +35,7 @@ class InitialisationTest(BitcoinTestFramework):
         assert_is_hex_string(get_challenge_asset(self.nodes[0]))
 
         # Test no challenge asset found
-        assert_not(get_challenge_asset(self.nodes[1])) # nodes[1] has no  challenge asset
+        assert(not get_challenge_asset(self.nodes[1])) # nodes[1] has no  challenge asset
         start_guardnode(self.options.tmpdir, 1) # start guardnode connected to nodes[1]
         time.sleep(WAIT_FOR_ERROR)
         assert(GN_log_contains(self.options.tmpdir,'No Challenge asset found in client chain'))

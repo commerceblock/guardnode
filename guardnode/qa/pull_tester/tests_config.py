@@ -8,7 +8,7 @@ home = expanduser("~")
 
 SRCDIR=home+"/ocean"
 BUILDDIR=home+"/ocean"
-GUARDNODEDIR=home+"/guardnode"
+GUARDNODE_DIR=home+"/guardnode"
 EXEEXT=""
 
 # These will turn into comments if they were disabled when configuring.

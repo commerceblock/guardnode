@@ -38,7 +38,7 @@ if os.name == 'posix':
     # terminal via ANSI escape sequences:
     BOLD = ('\033[0m', '\033[1m')
 
-TESTS_DIR = GUARDNODEDIR + '/guardnode/qa/tests/'
+TESTS_DIR = GUARDNODE_DIR + '/guardnode/qa/tests/'
 
 #If imported values are not defined then set to zero (or disabled)
 if 'ENABLE_WALLET' not in vars():
@@ -79,7 +79,7 @@ if "BITCOIND" not in os.environ:
     os.environ["OCEAND"] = BUILDDIR+ '/src/oceand' + EXEEXT
 
 if "RUNGARDNODE" not in os.environ:
-    os.environ["RUNGUARDNODE"] = GUARDNODEDIR+ '/run_guardnode'
+    os.environ["RUNGUARDNODE"] = GUARDNODE_DIR+ '/run_guardnode'
 
 if EXEEXT == ".exe" and "-win" not in opts:
     # https://github.com/bitcoin/bitcoin/commit/d52802551752140cf41f0d9a225a43e84404d3e9

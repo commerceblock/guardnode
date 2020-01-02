@@ -14,9 +14,8 @@ class BidHandler():
         logging.getLogger("BitcoinRPC")
         self.logger = logging.getLogger("Bid")
 
-    def check_locktime(self, txid):
-        tx = self.service_ocean.decoderawtransaction(self.service_ocean.getrawtransaction(txid))
-        blockcount = self.service_ocean.getblockcount()
+    def check_locktime(self,txid,blockcount):
+        tx = self.service_ocean.getrawtransaction(txid, True)
         for outp in tx["vout"]: # check OP_CHECKLOCKTIMEVERIFY in script
             if "OP_CHECKLOCKTIMEVERIFY" in outp["scriptPubKey"]["asm"] \
             and int(outp["scriptPubKey"]["asm"].split(" ")[0]) > blockcount:
@@ -32,9 +31,10 @@ class BidHandler():
         list_unspent = self.service_ocean.listunspent(1, 9999999, [], True, "CBT")
         input_sum = Decimal(0.0)
         bid_inputs = []
+        blockcount = self.service_ocean.getblockcount()
         # First try to use previous TX_LOCKED_MULTISIG outputs with valid locktime
         for unspent in list_unspent:
-            if not unspent["solvable"] and self.check_locktime(unspent["txid"]):
+            if not unspent["solvable"] and self.check_locktime(unspent["txid"],blockcount):
                 bid_inputs.append({"txid":unspent["txid"],"vout":unspent["vout"]})
                 input_sum += unspent["amount"]
                 if input_sum >= auction_price + self.bid_fee:
@@ -45,7 +45,7 @@ class BidHandler():
                 # check amount, not already in list and locktime
                 if unspent["amount"] >= auction_price + self.bid_fee - input_sum \
                 and next((False for item in bid_inputs if item["txid"] == unspent["txid"]), True) \
-                and self.check_locktime(unspent["txid"]):
+                and self.check_locktime(unspent["txid"],blockcount):
                     bid_inputs.append({"txid":unspent["txid"],"vout":unspent["vout"]})
                     input_sum += unspent["amount"]
                     break
@@ -53,7 +53,7 @@ class BidHandler():
         if input_sum < auction_price + self.bid_fee:
             for unspent in list_unspent:
                 if next((False for item in bid_inputs if item["txid"] == unspent["txid"]), True) \
-                and self.check_locktime(unspent["txid"]):
+                and self.check_locktime(unspent["txid"],blockcount):
                     bid_inputs.append({"txid":unspent["txid"],"vout":unspent["vout"]})
                     input_sum += unspent["amount"]
                     if input_sum >= auction_price + self.bid_fee:
