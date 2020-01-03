@@ -22,56 +22,53 @@ class BidHandler():
                 return False
         return True
 
-    # Select coins to fund bid transaction as:
-    # Until desired sum is reached:
-    #   1. Include TX_LOCKED_MULTISIG outputs of any size
-    #   2. Include single regular output of size large enough to cover (input sum - result of 1.)
-    #   3. Include all other outputs
+    # Select coins to fund bid transaction
+    # First find TX_LOCKED_MULTISIG outputs then find remaining utxos with the
+    # help of fundrawtransaction rpc
     def coin_selection(self, auction_price):
         list_unspent = self.service_ocean.listunspent(1, 9999999, [], True, "CBT")
         input_sum = Decimal(0.0)
-        bid_inputs = []
+        locked_inputs = []
         blockcount = self.service_ocean.getblockcount()
+
         # First try to use previous TX_LOCKED_MULTISIG outputs with valid locktime
         for unspent in list_unspent:
             if not unspent["solvable"] and self.check_locktime(unspent["txid"],blockcount):
-                bid_inputs.append({"txid":unspent["txid"],"vout":unspent["vout"]})
+                locked_inputs.append({"txid":unspent["txid"],"vout":unspent["vout"]})
                 input_sum += unspent["amount"]
                 if input_sum >= auction_price + self.bid_fee:
-                    break
-        # Next try to find a single input to cover the remaining amount
-        if input_sum < auction_price + self.bid_fee:
-            for unspent in list_unspent:
-                # check amount, not already in list and locktime
-                if unspent["amount"] >= auction_price + self.bid_fee - input_sum \
-                and next((False for item in bid_inputs if item["txid"] == unspent["txid"]), True) \
-                and self.check_locktime(unspent["txid"],blockcount):
-                    bid_inputs.append({"txid":unspent["txid"],"vout":unspent["vout"]})
-                    input_sum += unspent["amount"]
-                    break
-        # Otherwise build sum from whichever utxos are available
-        if input_sum < auction_price + self.bid_fee:
-            for unspent in list_unspent:
-                if next((False for item in bid_inputs if item["txid"] == unspent["txid"]), True) \
-                and self.check_locktime(unspent["txid"],blockcount):
-                    bid_inputs.append({"txid":unspent["txid"],"vout":unspent["vout"]})
-                    input_sum += unspent["amount"]
-                    if input_sum >= auction_price + self.bid_fee:
-                        break
-        if input_sum < auction_price + self.bid_fee:
-            self.logger.warn("Not enough CBT in wallet to match the auction price {}".format(auction_price))
-            return False, False
-        return bid_inputs, input_sum
+                    return locked_inputs, input_sum
+
+        # find remaining utxos to make up total value of tx using fundrawtransaction
+        dummy_tx = self.service_ocean.createrawtransaction([],{self.service_ocean.getnewaddress():Decimal(format(auction_price - input_sum,".8g"))})
+        try:
+            funded_tx_hex = self.service_ocean.fundrawtransaction(dummy_tx)["hex"]
+        except Exception as e:
+            if "Insufficient funds" in str(e):
+                self.logger.warn("Not enough CBT in wallet to match the auction price {}".format(auction_price))
+                return False, False
+            else:
+                raise
+
+        # get inputs chosen by fundrawtransaction
+        funded_tx = self.service_ocean.decoderawtransaction(funded_tx_hex)
+        bid_inputs = []
+        for input in funded_tx["vin"]:
+            bid_inputs.append({"txid":input["txid"],"vout":input["vout"]})
+        for vout in funded_tx["vout"]:
+            input_sum += vout["value"]
+
+        return locked_inputs + bid_inputs, input_sum
 
     # Take signed_raw_bid_tx and return fee value or False if failure to get estimate fee
     def estimate_fee(self, signed_raw_tx):
          # get fee-per-1000-bytes expected for inclusion in next 2 blocks
-        feeperkb = self.service_ocean.estimatefee(2)
+        feeperkb = self.service_ocean.estimatesmartfee(2)["feerate"]
         if feeperkb == -1: # failed to produce estimate
             return False
 
         # new fee = fee per byte * num. kb's in signed tx
-        size = len(signed_raw_tx["hex"].encode())
+        size = int(len(signed_raw_tx["hex"]) / 2) + 1
         return Decimal(format(feeperkb * (size / 1000), ".8g"))
 
     # construct, sign and send bid transaction
@@ -106,6 +103,7 @@ class BidHandler():
             if fee:
                 bid_outputs["change"] = Decimal(input_sum - request["auctionPrice"] - fee)
                 bid_outputs["fee"] = fee
+                self.bid_fee = fee
                 raw_bid_tx = self.service_ocean.createrawbidtx(bid_inputs, bid_outputs)
                 signed_raw_bid_tx = self.service_ocean.signrawtransaction(raw_bid_tx)
 

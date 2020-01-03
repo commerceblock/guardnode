@@ -27,7 +27,7 @@ class Args:
         if self.trigger_estimate_fee:
             # same calculation as in actual function
             feeperkb = 0.01
-            size = len(signed_raw_tx["hex"].encode())
+            size = int(len(signed_raw_tx["hex"]) / 2) + 1
             return Decimal(format(feeperkb * (size / 1000), ".8g"))
         return False
 
@@ -101,7 +101,7 @@ class BiddingTest(BitcoinTestFramework):
         assert_equal(bid_inputs[0]["txid"],bidtxid) # should use bidtx TX_LOCKED_MULTISIG output
         assert_equal('%.3f'%input_sum,'%.3f'%bidtx["vout"][bid_inputs[0]["vout"]]["value"]) # Check amount
         bid_inputs,input_sum = BidHandler.coin_selection(args,209993)
-        assert_equal(bid_inputs[0]["txid"],bidtxid) # should use bidtx TX_LOCKED_MULTISIG
+        assert_equal(bid_inputs[0]["txid"],bidtxid) # should use bidtx's TX_LOCKED_MULTISIG
         assert_greater_than(len(bid_inputs),1)      # and others to fill remaining fee amount
         assert_greater_than(input_sum, 209993)
 
@@ -132,8 +132,8 @@ class BiddingTest(BitcoinTestFramework):
         assert_equal(len(self.nodes[0].getrequestbids(self.nodes[0].getrequests()[0]["txid"])["bids"]),2)
         bidtx = self.nodes[0].decoderawtransaction(self.nodes[0].getrawtransaction(bidtxid))
         vout = next(item["n"] for item in bidtx["vout"] if item["scriptPubKey"]["type"] == "fee")
-        assert_greater_than(bidtx["vout"][vout]["value"],0.001) # fee in  correct range
-        assert_greater_than(0.01,bidtx["vout"][vout]["value"]) # fee in  correct range
+        assert_greater_than(bidtx["vout"][vout]["value"],0.005) # fee in  correct range
+        assert_greater_than(0.015,bidtx["vout"][vout]["value"]) # fee in  correct range
 
 
         # Test fee estimation

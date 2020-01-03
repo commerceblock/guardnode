@@ -74,9 +74,9 @@ for arg in sys.argv[1:]:
     else:
         opts.add(arg)
 
-#Set env vars
+# Set env vars
 if "BITCOIND" not in os.environ:
-    os.environ["OCEAND"] = BUILDDIR+ '/src/oceand' + EXEEXT
+    os.environ["OCEAND"] = 'oceand' + EXEEXT
 
 if "RUNGARDNODE" not in os.environ:
     os.environ["RUNGUARDNODE"] = GUARDNODE_DIR+ '/run_guardnode'

@@ -25,8 +25,7 @@ pip3 install pyzmq
 Running tests
 =============
 
-First set directories for Ocean source, Ocean build and Guardnode in
-`guardnode/qa/pull_tester/tests_config.py`. Default is Home folder.
+First ensure `oceand` is installed and included in `$PATH`.
 
 You can run any single test by calling
 

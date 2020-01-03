@@ -6,9 +6,10 @@
 from os.path import expanduser
 home = expanduser("~")
 
+GUARDNODE_DIR="."
+# below vars are currently unsused
 SRCDIR=home+"/ocean"
 BUILDDIR=home+"/ocean"
-GUARDNODE_DIR=home+"/guardnode"
 EXEEXT=""
 
 # These will turn into comments if they were disabled when configuring.
