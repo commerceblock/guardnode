@@ -141,10 +141,6 @@ def runtests():
     if coverage:
         flags.append(coverage.flag)
 
-    if len(test_list) > 1 and run_parallel > 1:
-        # Populate cache
-        subprocess.check_output([TESTS_DIR + 'create_cache.py'] + flags)
-
     #Run Tests
     max_len_name = len(max(test_list, key=len))
     time_sum = 0
