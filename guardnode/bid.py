@@ -34,7 +34,7 @@ class BidHandler():
         # First try to use previous TX_LOCKED_MULTISIG outputs with valid locktime
         for unspent in list_unspent:
             if not unspent["solvable"] and self.check_locktime(unspent["txid"],blockcount):
-                locked_inputs.append({"txid":unspent["txid"],"vout":unspent["vout"]})
+                locked_inputs.append({"txid":unspent["txid"],"vout":unspent["vout"],"locked":True})
                 input_sum += unspent["amount"]
                 if input_sum >= auction_price + self.bid_fee:
                     return locked_inputs, input_sum
@@ -54,21 +54,36 @@ class BidHandler():
         funded_tx = self.service_ocean.decoderawtransaction(funded_tx_hex)
         bid_inputs = []
         for input in funded_tx["vin"]:
-            bid_inputs.append({"txid":input["txid"],"vout":input["vout"]})
+            bid_inputs.append({"txid":input["txid"],"vout":input["vout"],"locked":False})
         for vout in funded_tx["vout"]:
             input_sum += vout["value"]
 
         return locked_inputs + bid_inputs, input_sum
 
     # Take signed_raw_bid_tx and return fee value or False if failure to get estimate fee
-    def estimate_fee(self, signed_raw_tx):
+    def estimate_fee(self, inputs, change = True):
          # get fee-per-1000-bytes expected for inclusion in next 2 blocks
         feeperkb = self.service_ocean.estimatesmartfee(2)["feerate"]
         if feeperkb == -1: # failed to produce estimate
             return False
 
-        # new fee = fee per byte * num. kb's in signed tx
-        size = int(len(signed_raw_tx["hex"]) / 2) + 1
+        # estimate bid tx size
+        size = 12
+        # add inputs
+        for input in inputs:
+            # get script size
+            script_size = int(len(self.service_ocean.getrawtransaction(input["txid"],True)["vout"][input["vout"]]["scriptPubKey"]["hex"])/2)
+            print(script_size)
+            if script_size == 25: # p2phk signature
+                size+=(41+110)
+            elif script_size < 111 and script_size > 106: # TX_LOCKED_MULTISIG signature
+                size+=(41+74)
+            else:
+                size += 150 # safe over-payment for unknown sig size
+        # add outputs
+        size += (44 + 109) + (44 + 0) # add locked output and fee output
+        if change: # if change output exists
+            size += (44 + 25) # add change output
         return Decimal(format(feeperkb * (size / 1000), ".8g"))
 
     # construct, sign and send bid transaction
@@ -82,6 +97,15 @@ class BidHandler():
             bid_inputs, input_sum = self.coin_selection(request["auctionPrice"])
             if not bid_inputs:
                 return
+
+            # Calculate fee
+            change = True
+            if input_sum == request["auctionPrice"]: # if no change output
+                change = False
+            fee = self.estimate_fee(bid_inputs,change)
+            if fee:
+                self.bid_fee = fee
+
             # find outputs
             bid_outputs = {}
             bid_outputs["endBlockHeight"] = request["endBlockHeight"]
@@ -97,26 +121,8 @@ class BidHandler():
             raw_bid_tx = self.service_ocean.createrawbidtx(bid_inputs, bid_outputs)
             signed_raw_bid_tx = self.service_ocean.signrawtransaction(raw_bid_tx)
 
-            # Calculate fee
-            fee = self.estimate_fee(signed_raw_bid_tx)
-            # rebuild tx with new fee.
-            if fee:
-                bid_outputs["change"] = Decimal(input_sum - request["auctionPrice"] - fee)
-                bid_outputs["fee"] = fee
-                self.bid_fee = fee
-                raw_bid_tx = self.service_ocean.createrawbidtx(bid_inputs, bid_outputs)
-                signed_raw_bid_tx = self.service_ocean.signrawtransaction(raw_bid_tx)
-
             # send bid tx
-            try:
-                bid_txid = self.service_ocean.sendrawtransaction(signed_raw_bid_tx["hex"])
-            except JSONRPCException: #  error due to change in fee  - redo coin selection
-                bid_inputs, _ = self.coin_selection(request["auctionPrice"])
-                if not bid_inputs:
-                    return
-                raw_bid_tx = self.service_ocean.createrawbidtx(bid_inputs, bid_outputs)
-                signed_raw_bid_tx = self.service_ocean.signrawtransaction(raw_bid_tx)
-                bid_txid = self.service_ocean.sendrawtransaction(signed_raw_bid_tx["hex"])
+            bid_txid = self.service_ocean.sendrawtransaction(signed_raw_bid_tx["hex"])
 
             # Import address so TX_LOCKED_MULTISIG output can be spent from
             address = self.service_ocean.decoderawtransaction(signed_raw_bid_tx['hex'])["vout"][0]["scriptPubKey"]["hex"]

@@ -18,18 +18,34 @@ class Args:
         self.logger = logging.getLogger("Bid")
         self.trigger_estimate_fee = False
         self.logger.disabled = True # supress output so warnings dont cause test to
-                                    # when error is expected behaviour
+                                    # fail when error is expected behaviour
     def check_locktime(self,txid,blockcount):
         return BidHandler.check_locktime(self,txid,blockcount)
     def coin_selection(self, auctionprice):
         return BidHandler.coin_selection(self, auctionprice)
-    def estimate_fee(self,signed_raw_tx):
-        if self.trigger_estimate_fee:
-            # same calculation as in actual function
-            feeperkb = 0.01
-            size = int(len(signed_raw_tx["hex"]) / 2) + 1
-            return Decimal(format(feeperkb * (size / 1000), ".8g"))
-        return False
+    def estimate_fee(self,inputs,change = True):
+        if not self.trigger_estimate_fee:
+            return False
+
+        # same calculation as in actual function
+        feeperkb = 0.01
+        # estimate bid tx size
+        size = 12
+        # add inputs
+        for input in inputs:
+            # get script size
+            script_size = int(len(self.service_ocean.getrawtransaction(input["txid"],True)["vout"][input["vout"]]["scriptPubKey"]["hex"])/2)
+            if script_size == 25: # p2phk signature
+                size+=(41+110)
+            elif script_size < 111 and script_size > 106: # TX_LOCKED_MULTISIG signature
+                size+=(41+74)
+            else:
+                size += 150 # safe over-payment for unknown sig size
+        # add outputs
+        size += (44 + 109) + (44 + 0) # add locked output and fee output
+        if change: # if change output exists
+            size += (44 + 25) # add change output
+        return Decimal(format(feeperkb * (size / 1000), ".8g"))
 
 class BiddingTest(BitcoinTestFramework):
 
@@ -130,17 +146,77 @@ class BiddingTest(BitcoinTestFramework):
         assert_is_hex_string(bidtxid)
         self.nodes[0].generate(1)
         assert_equal(len(self.nodes[0].getrequestbids(self.nodes[0].getrequests()[0]["txid"])["bids"]),2)
-        bidtx = self.nodes[0].decoderawtransaction(self.nodes[0].getrawtransaction(bidtxid))
+        bidtx_raw = self.nodes[0].getrawtransaction(bidtxid)
+        bidtx_size = int(len(bidtx_raw) / 2) + 1
+        bidtx = self.nodes[0].decoderawtransaction(bidtx_raw)
         vout = next(item["n"] for item in bidtx["vout"] if item["scriptPubKey"]["type"] == "fee")
-        assert_greater_than(bidtx["vout"][vout]["value"],0.005) # fee in  correct range
-        assert_greater_than(0.015,bidtx["vout"][vout]["value"]) # fee in  correct range
+        assert_greater_than(bidtx["vout"][vout]["value"]*100000,bidtx_size - 10) # fee in  correct range
+        assert_greater_than(bidtx_size + 10,bidtx["vout"][vout]["value"]*100000) # fee in  correct range
 
 
-        # Test fee estimation
+        # Test estimate_fee()
+        unspent = self.nodes[0].listunspent()
+        inputs = []
+        outputs = {}
+        addr = self.nodes[0].getnewaddress()
+        outputs["endBlockHeight"] = request["endBlockHeight"]
+        outputs["requestTxid"] = request["txid"]
+        outputs["pubkey"] = self.nodes[0].validateaddress(addr)["pubkey"]
+        outputs["feePubkey"] = outputs["pubkey"]
+        outputs["changeAddress"] = addr
+        outputs["fee"] = 0.0001
+        outputs["value"] = 0.0001
+
         # check failure to estimate fee when not enough txs to base estimate on
-        signed_raw_tx = {'hex': '020000000001c1380cd5ab57e656d6c6825139538ab12f5fac71eb8336c3aacc673bb3b9c6cf000000006a4730440220737bd98b89d7c97fa0027d3364a79e71efdf48541c94e8d6cfa3abf7dec71412022060d47ef1f16b6920c8e65cd4bd0d5d58ebb0a55113f09689d05133062510b474012103025ecf586d4284e720ba2994d8d218cc38b7b86a0549fd341ccb399f16f2ca7afeffffff03018af3413eecabe8ace374f6c25efd07c46b72ba9edf77f604d22a023f7bc956a101000000001dcd6500006d0179b175512103bc966cc8a79361de0f864c77cfef7a138942c1d9d645cd069b658c43e08e31952102595a910d6287f79583fcfe50cc15be43b825b596d496ef42d5f2c519707405fc21028767253aedb195fa6874d79c1cc1da4f0807b9f219fc8ad558724d01cc11160453ae018af3413eecabe8ace374f6c25efd07c46b72ba9edf77f604d22a023f7bc956a1010000131953bcc3f0001976a914447b751cb5ebd9162de946f67bff88c81e8cc70b88ac018af3413eecabe8ace374f6c25efd07c46b72ba9edf77f604d22a023f7bc956a1010000000000002710000066000000', 'complete': True}
-        newfee = BidHandler.estimate_fee(args,signed_raw_tx)
+        newfee = BidHandler.estimate_fee(args,inputs)
         assert(not newfee)
+
+        # Test tx from single standard tx as input
+        # get utxo with standard sciptPubKey
+        tx = next(tx for tx in unspent if tx["solvable"])
+        outputs["change"] = Decimal(format(tx["amount"] - Decimal(outputs["value"] - outputs["fee"]),".8g"))
+        inputs.append({"txid":tx["txid"],"vout":tx["vout"]})
+        fee = Args.estimate_fee(args,inputs) # identical function as in BidHandler but without estimesmartfee call
+        rawbidtx = self.nodes[0].createrawbidtx(inputs,outputs)
+        signedrawbidtx = self.nodes[0].signrawtransaction(rawbidtx)
+        assert_greater_than(int(len(signedrawbidtx["hex"])/2)+1,fee*10000 - 2) # fee in  correct range
+        assert_greater_than(fee*100000 + 2,int(len(signedrawbidtx["hex"])/2)+1) # fee in  correct range
+
+        # Test tx from single locked multisig tx as input
+        inputs = []
+        tx = next(tx for tx in unspent if not tx["solvable"])
+        amount = tx["amount"]
+        outputs["change"] = Decimal(format(amount - Decimal(outputs["value"] - outputs["fee"]),".8g"))
+        inputs.append({"txid":tx["txid"],"vout":tx["vout"]})
+        fee = Args.estimate_fee(args,inputs) # identical function as in BidHandler
+        rawbidtx = self.nodes[0].createrawbidtx(inputs,outputs)
+        signedrawbidtx = self.nodes[0].signrawtransaction(rawbidtx)
+        assert_greater_than(int(len(signedrawbidtx["hex"])/2)+1,fee*10000 - 2) # fee in  correct range
+        assert_greater_than(fee*100000 + 2,int(len(signedrawbidtx["hex"])/2)+1) # fee in  correct range
+
+        # Test with one of each type of input
+        tx = next(tx for tx in unspent if tx["solvable"])
+        amount += tx["amount"]
+        inputs.append({"txid":tx["txid"],"vout":tx["vout"]})
+        outputs["change"] = Decimal(format(amount - Decimal(outputs["value"] - outputs["fee"]),".8g"))
+        fee = Args.estimate_fee(args,inputs) # identical function as in BidHandler
+        rawbidtx = self.nodes[0].createrawbidtx(inputs,outputs)
+        signedrawbidtx = self.nodes[0].signrawtransaction(rawbidtx)
+        assert_greater_than(int(len(signedrawbidtx["hex"])/2)+1,fee*10000 - 4) # fee in  correct range
+        assert_greater_than(fee*100000 + 4,int(len(signedrawbidtx["hex"])/2)+1) # fee in  correct range
+
+        # Test with many inputs
+        for i in range(5):
+            tx = unspent[i]
+            amount += tx["amount"]
+            inputs.append({"txid":tx["txid"],"vout":tx["vout"]})
+        outputs["change"] = Decimal(format(amount - Decimal(outputs["value"] - outputs["fee"]),".8g"))
+        fee = Args.estimate_fee(args,inputs) # identical function as in BidHandler
+        rawbidtx = self.nodes[0].createrawbidtx(inputs,outputs)
+        signedrawbidtx = self.nodes[0].signrawtransaction(rawbidtx)
+        assert_greater_than(int(len(signedrawbidtx["hex"])/2)+1,fee*10000 - 10) # fee in  correct range
+        assert_greater_than(fee*100000 + 10,int(len(signedrawbidtx["hex"])/2)+1) # fee in  correct range
+
 
 if __name__ == '__main__':
     BiddingTest().main()
