@@ -40,7 +40,7 @@ class BidHandler():
                     return locked_inputs, input_sum
 
         # find remaining utxos to make up total value of tx using fundrawtransaction
-        dummy_tx = self.service_ocean.createrawtransaction([],{self.service_ocean.getnewaddress():Decimal(format(auction_price - input_sum,".8g"))})
+        dummy_tx = self.service_ocean.createrawtransaction([],{self.service_ocean.getnewaddress():Decimal(format(auction_price + self.bid_fee - input_sum,".8g"))})
         try:
             funded_tx_hex = self.service_ocean.fundrawtransaction(dummy_tx)["hex"]
         except Exception as e:
@@ -120,7 +120,7 @@ class BidHandler():
             # Make and sign transaction
             raw_bid_tx = self.service_ocean.createrawbidtx(bid_inputs, bid_outputs)
             signed_raw_bid_tx = self.service_ocean.signrawtransaction(raw_bid_tx)
-
+            
             # send bid tx
             bid_txid = self.service_ocean.sendrawtransaction(signed_raw_bid_tx["hex"])
 
