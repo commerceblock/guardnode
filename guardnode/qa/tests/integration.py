@@ -111,7 +111,6 @@ class IntegrationTest(BitcoinTestFramework):
         self.nodes[0].sendtoaddress(self.nodes[0].getnewaddress(),1,"","",True,"CHALLENGE") # send challenge asset tx
         self.nodes[0].generate(1)
         time.sleep(WAIT_FOR_WORK)
-        GN_log_print(self.options.tmpdir)
         assert(GN_log_contains(self.options.tmpdir,'Challenge found at height: '+str(self.nodes[0].getblockcount())))
         time.sleep(WAIT_FOR_WORK)
         assert(GN_log_contains(self.options.tmpdir,'Could not connect to coordinator to send response data:'))

@@ -34,7 +34,7 @@ class BidHandler():
         # First try to use previous TX_LOCKED_MULTISIG outputs with valid locktime
         for unspent in list_unspent:
             if not unspent["solvable"] and self.check_locktime(unspent["txid"],blockcount):
-                locked_inputs.append({"txid":unspent["txid"],"vout":unspent["vout"],"locked":True})
+                locked_inputs.append({"txid":unspent["txid"],"vout":unspent["vout"]})
                 input_sum += unspent["amount"]
                 if input_sum >= auction_price + self.bid_fee:
                     return locked_inputs, input_sum
@@ -54,7 +54,7 @@ class BidHandler():
         funded_tx = self.service_ocean.decoderawtransaction(funded_tx_hex)
         bid_inputs = []
         for input in funded_tx["vin"]:
-            bid_inputs.append({"txid":input["txid"],"vout":input["vout"],"locked":False})
+            bid_inputs.append({"txid":input["txid"],"vout":input["vout"]})
         for vout in funded_tx["vout"]:
             input_sum += vout["value"]
 
@@ -73,7 +73,6 @@ class BidHandler():
         for input in inputs:
             # get script size
             script_size = int(len(self.service_ocean.getrawtransaction(input["txid"],True)["vout"][input["vout"]]["scriptPubKey"]["hex"])/2)
-            print(script_size)
             if script_size == 25: # p2phk signature
                 size+=(41+110)
             elif script_size < 111 and script_size > 106: # TX_LOCKED_MULTISIG signature
@@ -120,7 +119,7 @@ class BidHandler():
             # Make and sign transaction
             raw_bid_tx = self.service_ocean.createrawbidtx(bid_inputs, bid_outputs)
             signed_raw_bid_tx = self.service_ocean.signrawtransaction(raw_bid_tx)
-            
+
             # send bid tx
             bid_txid = self.service_ocean.sendrawtransaction(signed_raw_bid_tx["hex"])
 
