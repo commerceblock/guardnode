@@ -10,27 +10,22 @@ from test_framework.util import *
 from test_framework.key import CPubKey
 from guardnode.challenge import Challenge, asset_in_block
 
-# dummy Challenge instance to pass into functions for testing
+# args object to pass into Challenge instance for testing
 class Args:
-    def __init__(self,ocean):
-        self.key = None
-        self.ocean = ocean
-        self.bid_txid = 12345
-        self.args = InputArgs()
-        self.service_ocean = ocean
-        self.client_fee_pubkey = None
-        self.rev_challengeasset = None
-        self.genesis = ocean.getblockhash(0)
-        self.logger = logging.getLogger("Guardnode")
-    def set_key(self,addr):
-        Challenge.set_key(self, addr)
-    # dummy method returns None to prevent asset_in_block() proceeding to respond() while testing
-    def asset_in_block(self,asset,block_height):
-        return None
-
-# dummy self.args class
-class InputArgs():
     def __init__(self):
+        self.rpchost = "127.0.0.1:"+str(rpc_port(0))
+        rpc_u, rpc_p = rpc_auth_pair(0)
+        self.rpcuser = rpc_u
+        self.rpcpass = rpc_p
+        self.servicerpchost = "127.0.0.1:"+str(rpc_port(0))
+        rpc_u, rpc_p = rpc_auth_pair(0)
+        self.servicerpcuser = rpc_u
+        self.servicerpcpass = rpc_p
+
+        self.challengehost = ""
+        self.uniquebidpubkeys = False
+        self.bidpubkey = None
+        self.bidlimit = 15
         self.serviceblocktime = 1
 
 
@@ -56,10 +51,11 @@ class ChallengeTest(BitcoinTestFramework):
         self.sync_all()
         genesis = self.nodes[0].getblockhash(0)
 
-        args = Args(self.nodes[0]) # dummy args
+        args = Args()
+        challenge = Challenge(args)
 
         # Test check_for_request method
-        assert(not Challenge.check_for_request(args)) # return False when no request
+        assert(not challenge.check_for_request()) # return False when no request
 
         # Make request
         requesttxid = make_request(self.nodes[0])
@@ -67,7 +63,7 @@ class ChallengeTest(BitcoinTestFramework):
         assert_equal(len(self.nodes[0].getrequests()),1)
 
         # Test check_for_request method returns request
-        assert_equal(Challenge.check_for_request(args)["genesisBlock"], genesis) # return request
+        assert_equal(challenge.check_for_request()["genesisBlock"], genesis) # return request
 
         # Make another request with different genesis
         blockcount = self.nodes[0].getblockcount()
@@ -84,16 +80,16 @@ class ChallengeTest(BitcoinTestFramework):
         assert_equal(len(self.nodes[0].getrequests()),2)
 
         # Check correct request fetched for each genesis
-        assert_equal(Challenge.check_for_request(args)["genesisBlock"], genesis)
-        args.genesis = new_genesis
-        assert_equal(Challenge.check_for_request(args)["genesisBlock"],args.genesis)
+        assert_equal(challenge.check_for_request()["genesisBlock"],genesis)
+        challenge.genesis = new_genesis
+        assert_equal(challenge.check_for_request()["genesisBlock"],new_genesis)
 
 
         # Test gen_feepubkey() and set_key()
-        addr = Challenge.gen_feepubkey(args)
-        assert_is_hex_string(args.client_fee_pubkey) # check exists
+        addr = challenge.gen_feepubkey()
+        assert_is_hex_string(challenge.client_fee_pubkey) # check exists
         # Check resulting priv key corresponds to fee pub key
-        assert_equal(CPubKey(args.key.get_pubkey()).hex(),args.client_fee_pubkey)
+        assert_equal(CPubKey(challenge.key.get_pubkey()).hex(),challenge.client_fee_pubkey)
 
 
         # Test asset_in_block()
@@ -115,24 +111,25 @@ class ChallengeTest(BitcoinTestFramework):
 
         # Test await_challenge()
         block_count = self.nodes[0].getblockcount()
-        args.last_block_height = block_count
+        challenge.last_block_height = block_count
         request = {"endBlockHeight":block_count+2,"startBlockHeight":block_count+1,"txid":"1234"}
         # Check request not yet started
-        assert_equal(Challenge.await_challenge(args, request),True)
+        assert_equal(challenge.await_challenge(request),True)
         # Check Challenge asset check called
         self.nodes[0].generate(1)
-        assert_equal(Challenge.await_challenge(args, request),True)
+        assert_equal(challenge.await_challenge(request),True)
         # Check request ended
         self.nodes[0].generate(2)
-        assert(not Challenge.await_challenge(args, request))
+        assert(not challenge.await_challenge(request))
 
 
         # Test generate_response()
-        data, headers = Challenge.generate_response(args, txid)
+        challenge.bid_txid = txid
+        data, headers = challenge.generate_response(txid)
         assert(data)
         assert(headers)
         # Check sig against public key
-        pubkey = CPubKey(hex_str_to_bytes(args.client_fee_pubkey))
+        pubkey = CPubKey(hex_str_to_bytes(challenge.client_fee_pubkey))
         sig = data[data.find("sig")+7:-2]
         assert(pubkey.verify(hex_str_to_rev_bytes(txid),hex_str_to_bytes(sig)))
 
