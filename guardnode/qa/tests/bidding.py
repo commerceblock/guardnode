@@ -8,30 +8,6 @@ from test_framework.test_framework import BitcoinTestFramework
 from test_framework.util import *
 from guardnode.bid import *
 
-# copy of BidHandler.estimatefee without call to estimatesmartfee().
-# estimatesmartfee() requires many transactions to be created in order to return a
-# usable value - increasing the tests runtime drastically (~2 mins)
-def estimate_fee(ocean,inputs,change = True):
-    # same calculation as in actual function
-    feeperkb = 0.01
-    # estimate bid tx size
-    size = 12
-    # add inputs
-    for input in inputs:
-        # get script size
-        script_size = int(len(ocean.getrawtransaction(input["txid"],True)["vout"][input["vout"]]["scriptPubKey"]["hex"])/2)
-        if script_size == 25: # p2phk signature
-            size+=(41+110)
-        elif script_size < 111 and script_size > 106: # TX_LOCKED_MULTISIG signature
-            size+=(41+74)
-        else:
-            size += 150 # safe over-payment for unknown sig size
-    # add outputs
-    size += (44 + 109) + (44 + 0) # add locked output and fee output
-    if change: # if change output exists
-        size += (44 + 25) # add change output
-    return Decimal(format(feeperkb * (size / 1000), ".8g"))
-
 class BiddingTest(BitcoinTestFramework):
 
     def __init__(self):
@@ -144,7 +120,7 @@ class BiddingTest(BitcoinTestFramework):
         outputs["value"] = 0.0001
 
         # check failure to estimate fee when not enough txs to base estimate on
-        newfee = bid_handler.estimate_fee(inputs)
+        newfee = bid_handler.estimate_fee(inputs,True)
         assert(not newfee)
 
         # Test tx from single standard tx as input
@@ -152,11 +128,13 @@ class BiddingTest(BitcoinTestFramework):
         tx = next(tx for tx in unspent if tx["solvable"])
         outputs["change"] = Decimal(format(tx["amount"] - Decimal(outputs["value"] - outputs["fee"]),".8g"))
         inputs.append({"txid":tx["txid"],"vout":tx["vout"]})
-        fee = estimate_fee(self.nodes[0],inputs) # identical function as in BidHandler but without estimesmartfee call
+        bid_handler.testing = True
+        fee = bid_handler.estimate_fee(inputs,True) # identical function as in BidHandler but without estimesmartfee call
         rawbidtx = self.nodes[0].createrawbidtx(inputs,outputs)
         signedrawbidtx = self.nodes[0].signrawtransaction(rawbidtx)
-        assert_greater_than(int(len(signedrawbidtx["hex"])/2)+1,fee*10000 - 2) # fee in  correct range
-        assert_greater_than(fee*100000 + 2,int(len(signedrawbidtx["hex"])/2)+1) # fee in  correct range
+        # allow 4 bytes out per signature + 3
+        assert_greater_than(int(len(signedrawbidtx["hex"])/2)+1,fee*COIN*1000 - 7) # fee in  correct range
+        assert_greater_than(fee*COIN*1000+7,int(len(signedrawbidtx["hex"])/2)+1) # fee in  correct range
 
         # Test tx from single locked multisig tx as input
         inputs = []
@@ -164,22 +142,22 @@ class BiddingTest(BitcoinTestFramework):
         amount = tx["amount"]
         outputs["change"] = Decimal(format(amount - Decimal(outputs["value"] - outputs["fee"]),".8g"))
         inputs.append({"txid":tx["txid"],"vout":tx["vout"]})
-        fee = estimate_fee(self.nodes[0],inputs) # identical function as in BidHandler
+        fee = bid_handler.estimate_fee(inputs,True) # identical function as in BidHandler
         rawbidtx = self.nodes[0].createrawbidtx(inputs,outputs)
         signedrawbidtx = self.nodes[0].signrawtransaction(rawbidtx)
-        assert_greater_than(int(len(signedrawbidtx["hex"])/2)+1,fee*10000 - 2) # fee in  correct range
-        assert_greater_than(fee*100000 + 2,int(len(signedrawbidtx["hex"])/2)+1) # fee in  correct range
+        assert_greater_than(int(len(signedrawbidtx["hex"])/2)+1,fee*COIN*1000 - 7) # fee in  correct range
+        assert_greater_than(fee*COIN*1000+7,int(len(signedrawbidtx["hex"])/2)+1) # fee in  correct range
 
         # Test with one of each type of input
         tx = next(tx for tx in unspent if tx["solvable"])
         amount += tx["amount"]
         inputs.append({"txid":tx["txid"],"vout":tx["vout"]})
         outputs["change"] = Decimal(format(amount - Decimal(outputs["value"] - outputs["fee"]),".8g"))
-        fee = estimate_fee(self.nodes[0],inputs) # identical function as in BidHandler
+        fee = bid_handler.estimate_fee(inputs,True) # identical function as in BidHandler
         rawbidtx = self.nodes[0].createrawbidtx(inputs,outputs)
         signedrawbidtx = self.nodes[0].signrawtransaction(rawbidtx)
-        assert_greater_than(int(len(signedrawbidtx["hex"])/2)+1,fee*10000 - 4) # fee in  correct range
-        assert_greater_than(fee*100000 + 4,int(len(signedrawbidtx["hex"])/2)+1) # fee in  correct range
+        assert_greater_than(int(len(signedrawbidtx["hex"])/2)+1,fee*COIN*1000 - 11) # fee in  correct range
+        assert_greater_than(fee*COIN*1000+11,int(len(signedrawbidtx["hex"])/2)+1) # fee in  correct range
 
         # Test with many inputs
         for i in range(5):
@@ -187,11 +165,11 @@ class BiddingTest(BitcoinTestFramework):
             amount += tx["amount"]
             inputs.append({"txid":tx["txid"],"vout":tx["vout"]})
         outputs["change"] = Decimal(format(amount - Decimal(outputs["value"] - outputs["fee"]),".8g"))
-        fee = estimate_fee(self.nodes[0],inputs) # identical function as in BidHandler
+        fee = bid_handler.estimate_fee(inputs,True) # identical function as in BidHandler
         rawbidtx = self.nodes[0].createrawbidtx(inputs,outputs)
         signedrawbidtx = self.nodes[0].signrawtransaction(rawbidtx)
-        assert_greater_than(int(len(signedrawbidtx["hex"])/2)+1,fee*10000 - 10) # fee in  correct range
-        assert_greater_than(fee*100000 + 10,int(len(signedrawbidtx["hex"])/2)+1) # fee in  correct range
+        assert_greater_than(int(len(signedrawbidtx["hex"])/2)+1,fee*COIN*1000 - 23) # fee in  correct range
+        assert_greater_than(fee*COIN*1000+23,int(len(signedrawbidtx["hex"])/2)+1) # fee in  correct range
 
 
 if __name__ == '__main__':

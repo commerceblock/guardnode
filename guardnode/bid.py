@@ -2,6 +2,7 @@
 import logging
 from decimal import *
 from .qa.tests.test_framework.authproxy import JSONRPCException
+from .qa.tests.test_framework.mininode import COIN
 
 DEFAULT_BID_FEE = Decimal("0.0001")
 
@@ -61,12 +62,14 @@ class BidHandler():
         return locked_inputs + bid_inputs, input_sum
 
     # Take signed_raw_bid_tx and return fee value or False if failure to get estimate fee
-    def estimate_fee(self, inputs, change = True):
-         # get fee-per-1000-bytes expected for inclusion in next 2 blocks
-        feeperkb = self.service_ocean.estimatesmartfee(2)["feerate"]
-        if feeperkb == -1: # failed to produce estimate
-            return False
-
+    def estimate_fee(self,inputs,change=True):
+        # get fee-per-1000-bytes expected for inclusion in next 2 blocks
+        if not hasattr(self,"testing"): # if in testing mode ignore estimatesmartfee call
+            feeperkb = self.service_ocean.estimatesmartfee(2)["feerate"]
+            if feeperkb == -1: # failed to produce estimate
+                return False
+        else:
+            feeperkb = 1/COIN
         # estimate bid tx size
         size = 12
         # add inputs
@@ -104,6 +107,8 @@ class BidHandler():
             fee = self.estimate_fee(bid_inputs,change)
             if fee:
                 self.bid_fee = fee
+            else:
+                self.bid_fee = DEFAULT_BID_FEE
 
             # find outputs
             bid_outputs = {}
