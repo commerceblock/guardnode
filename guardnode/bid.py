@@ -2,7 +2,6 @@
 import logging
 from decimal import *
 from .qa.tests.test_framework.authproxy import JSONRPCException
-from .qa.tests.test_framework.mininode import COIN
 
 DEFAULT_BID_FEE = Decimal("0.0001")
 
@@ -71,7 +70,7 @@ class BidHandler():
             if feeperkb == -1: # failed to produce estimate
                 return False
         else:
-            feeperkb = 0.0001
+            feeperkb = float(DEFAULT_BID_FEE) # use default bid value as feeperkb value when testing
         # estimate bid tx size
         size = 10
         # add inputs
