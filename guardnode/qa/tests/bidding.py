@@ -133,7 +133,8 @@ class BiddingTest(BitcoinTestFramework):
         rawbidtx = self.nodes[0].createrawbidtx(inputs,outputs)
         signedrawbidtx = self.nodes[0].signrawtransaction(rawbidtx)
         signedrawbidtx_size = int(len(signedrawbidtx["hex"])/2)+1
-        fee = fee*10000000 # bring fee into same magnitude as tx size for comparison
+        # bring fee into same magnitude as tx size for comparison
+        fee = fee*1000*1000 # fee * 1/feeperbyte value * num. bytes in kb
         # allow 2 bytes overestimate per scriptSig
         assert_greater_than(signedrawbidtx_size,fee-2) # fee in  correct range
         assert_greater_than(fee+2,signedrawbidtx_size) # fee in  correct range
@@ -148,7 +149,8 @@ class BiddingTest(BitcoinTestFramework):
         rawbidtx = self.nodes[0].createrawbidtx(inputs,outputs)
         signedrawbidtx = self.nodes[0].signrawtransaction(rawbidtx)
         signedrawbidtx_size = int(len(signedrawbidtx["hex"])/2)+1
-        fee = fee*10000000 # bring fee into same magnitude as tx size for comparison
+        # bring fee into same magnitude as tx size for comparison
+        fee = fee*1000*1000 # fee * 1/feeperbyte value * num. bytes in kb
         # allow 2 bytes overestimate per scriptSig
         assert_greater_than(signedrawbidtx_size,fee-2) # fee in  correct range
         assert_greater_than(fee+2,signedrawbidtx_size) # fee in  correct range
@@ -162,7 +164,8 @@ class BiddingTest(BitcoinTestFramework):
         rawbidtx = self.nodes[0].createrawbidtx(inputs,outputs)
         signedrawbidtx = self.nodes[0].signrawtransaction(rawbidtx)
         signedrawbidtx_size = int(len(signedrawbidtx["hex"])/2)+1
-        fee = fee*10000000 # bring fee into same magnitude as tx size for comparison
+        # bring fee into same magnitude as tx size for comparison
+        fee = fee*1000*1000 # fee * 1/feeperbyte value * num. bytes in kb
         # allow 2 bytes overestimate per scriptSig
         assert_greater_than(signedrawbidtx_size,fee-4) # fee in  correct range
         assert_greater_than(fee+4,signedrawbidtx_size) # fee in  correct range
@@ -177,7 +180,8 @@ class BiddingTest(BitcoinTestFramework):
         rawbidtx = self.nodes[0].createrawbidtx(inputs,outputs)
         signedrawbidtx = self.nodes[0].signrawtransaction(rawbidtx)
         signedrawbidtx_size = int(len(signedrawbidtx["hex"])/2)+1
-        fee = fee*10000000 # bring fee into same magnitude as tx size for comparison
+        # bring fee into same magnitude as tx size for comparison
+        fee = fee*1000*1000 # fee * 1/feeperbyte value * num. bytes in kb
         # allow 2 bytes overestimate per scriptSig
         assert_greater_than(signedrawbidtx_size,fee-10) # fee in  correct range
         assert_greater_than(fee+10,signedrawbidtx_size) # fee in  correct range
