@@ -26,22 +26,24 @@ class BidHandler():
     # Select coins to fund bid transaction
     # First find TX_LOCKED_MULTISIG outputs then find remaining utxos with the
     # help of fundrawtransaction rpc
+    # Coin select for slightly larger fee than previous to account for a potential
+    # rise in fee value after coin selection
     def coin_selection(self, auction_price):
         list_unspent = self.service_ocean.listunspent(1, 9999999, [], True, "CBT")
         input_sum = Decimal(0.0)
         locked_inputs = []
         blockcount = self.service_ocean.getblockcount()
 
-        # First try to use previous TX_LOCKED_MULTISIG outputs with valid locktime
+        # First try to use previous TX_LOCKED_MULTISIG outputs with valid locktime.
         for unspent in list_unspent:
             if not unspent["solvable"] and self.check_locktime(unspent["txid"],blockcount):
                 locked_inputs.append({"txid":unspent["txid"],"vout":unspent["vout"]})
                 input_sum += unspent["amount"]
-                if input_sum >= auction_price + self.bid_fee:
+                if input_sum >= auction_price + self.bid_fee*Decimal("1.2"):
                     return locked_inputs, input_sum
 
         # find remaining utxos to make up total value of tx using fundrawtransaction
-        dummy_tx = self.service_ocean.createrawtransaction([],{self.service_ocean.getnewaddress():Decimal(format(auction_price + self.bid_fee - input_sum,".8g"))})
+        dummy_tx = self.service_ocean.createrawtransaction([],{self.service_ocean.getnewaddress():Decimal(format(auction_price + self.bid_fee*Decimal("1.2") - input_sum,".8g"))})
         try:
             funded_tx_hex = self.service_ocean.fundrawtransaction(dummy_tx)["hex"]
         except Exception as e:
@@ -69,17 +71,17 @@ class BidHandler():
             if feeperkb == -1: # failed to produce estimate
                 return False
         else:
-            feeperkb = 1/COIN
+            feeperkb = 0.0001
         # estimate bid tx size
-        size = 12
+        size = 10
         # add inputs
         for input in inputs:
             # get script size
             script_size = int(len(self.service_ocean.getrawtransaction(input["txid"],True)["vout"][input["vout"]]["scriptPubKey"]["hex"])/2)
-            if script_size == 25: # p2phk signature
-                size+=(41+110)
-            elif script_size < 111 and script_size > 106: # TX_LOCKED_MULTISIG signature
-                size+=(41+74)
+            if script_size == 25: # p2phk scriptPubKey
+                size+=(41+108) # scirptSig is 107 +- 1 bytes => max 108 bytes
+            elif script_size == 109: # TX_LOCKED_MULTISIG scriptPubKey
+                size+=(41+74)  # scriptSig can be 72,73 or 74 => max 74
             else:
                 size += 150 # safe over-payment for unknown sig size
         # add outputs
@@ -107,8 +109,6 @@ class BidHandler():
             fee = self.estimate_fee(bid_inputs,change)
             if fee:
                 self.bid_fee = fee
-            else:
-                self.bid_fee = DEFAULT_BID_FEE
 
             # find outputs
             bid_outputs = {}
