@@ -41,6 +41,8 @@ PORT_RANGE = 5000
 
 BITCOIND_PROC_WAIT_TIMEOUT = 60
 
+WAIT_FOR_ERROR = 1 # sleep to allow guardnode to produce error
+WAIT_FOR_WORK = 2 # sleep to allow guardnode to process
 
 class PortSeed:
     # Must be initialized with a unique integer for each process
@@ -203,7 +205,7 @@ def initialize_datadir(dirname, n):
     return datadir
 
 def rpc_auth_pair(n):
-    return 'rpcuser💻' + str(n), 'rpcpass🔑' + str(n)
+    return 'rpcuser' + str(n), 'rpcpass' + str(n)
 
 def rpc_url(i, rpchost=None):
     rpc_u, rpc_p = rpc_auth_pair(i)
@@ -379,7 +381,7 @@ def start_nodes(num_nodes, dirname, extra_args=None, rpchost=None, timewait=None
     return rpcs
 
 def log_filename(dirname, n_node, logname):
-    return os.path.join(dirname, "node"+str(n_node), "oceanregtest", logname)
+    return os.path.join(dirname, "node"+str(n_node), "elementsregtest", logname)
 
 def stop_node(node, i):
     try:
@@ -410,6 +412,70 @@ def connect_nodes(from_connection, node_num):
 def connect_nodes_bi(nodes, a, b):
     connect_nodes(nodes[a], b)
     connect_nodes(nodes[b], a)
+
+def start_guardnode(dirname, node, args=[]):
+    """
+    Start a guardnode against node 0 and return its subprocess. Arguments not
+    required for connecting must be provided as a list. Returns tuple of subprocess
+    and log file object
+    """
+    entry = os.getenv("RUNGUARDNODE")
+    rpc_u, rpc_p = rpc_auth_pair(node)
+    port = rpc_port(node)
+    nodelogfile = log_filename(dirname,node,"debug.log")
+    args = [ entry, \
+        "--rpchost", "127.0.0.1:"+str(port), "--rpcuser", rpc_u, "--rpcpass", rpc_p, \
+        "--servicerpchost", "127.0.0.1:"+str(port), "--servicerpcuser", rpc_u, "--servicerpcpass", rpc_p, \
+        "--bidlimit", "10", "--serviceblocktime", "1", "--nodelogfile", nodelogfile] \
+        + args
+    # remove previous log
+    if os.path.exists(dirname+'/GN_log'):
+        os.remove(dirname+'/GN_log')
+    # make GN log file
+    log = open(dirname+'/GN_log', 'a')
+    guardnode = subprocess.Popen(args, stdout=log, stderr=subprocess.STDOUT, bufsize=1)
+    return guardnode, log
+
+def stop_guardnode(guardnode):
+    guardnode[1].close() # close log file
+    guardnode[0].terminate() # terminate process
+
+def GN_log_contains(dirname,str):
+    """
+    Searches guardnode log for given string line by line from the bottom
+    of the file
+    """
+    with open(dirname+'/GN_log', 'r') as log:
+        for line in reversed(list(log)):
+            if str in line.rstrip():
+                return True
+        return False
+
+def GN_log_print(dirname):
+    """
+    print log to stdout for testing
+    """
+    with open(dirname+'/GN_log', 'r') as log:
+        print(log.read())
+
+def make_request(node, startprice=5):
+    """
+    Make request transaciton and send to mempool.
+    Return txid
+    """
+    blockcount = node.getblockcount()
+    unspent = node.listunspent(1, 9999999, [], True, "PERMISSION")
+    pubkey = node.validateaddress(node.getnewaddress())["pubkey"]
+    genesis = node.getblockhash(0)
+
+    inputs = {"txid": unspent[0]["txid"], "vout": unspent[0]["vout"]}
+    outputs = {"decayConst": 10, "endBlockHeight": blockcount+20, "fee": 1, "genesisBlockHash": genesis,
+    "startBlockHeight": blockcount+10, "tickets": 10, "startPrice": startprice, "value": unspent[0]["amount"], "pubkey": pubkey}
+    tx = node.createrawrequesttx(inputs, outputs)
+    signedtx = node.signrawtransaction(tx)
+    txid = node.sendrawtransaction(signedtx["hex"])
+    assert(txid in node.getrawmempool())
+    return txid
 
 def find_output(node, txid, amount):
     """

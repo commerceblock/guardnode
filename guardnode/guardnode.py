@@ -5,6 +5,7 @@ from time import sleep
 from argparse import ArgumentParser
 from .challenge import Challenge
 from .alerts import Alerts
+from .bid import *
 
 # Default debug log file location for ocean nodes in linux machines
 NODE_LOG_FILE_DEFAULT = "/home/bitcoin/.bitcoin/ocean_test/debug.log"
@@ -30,7 +31,7 @@ def parse_args():
 
     parser.add_argument('--bidpubkey', required=False, type=str, help="Guardnode winning bid public key")
     parser.add_argument('--bidlimit', required=False, type=float, default="0.0", help="Guardnode upper bid limit")
-    parser.add_argument('--bidfee', required=False, type=float, default=None, help="Guardnode bid fee")
+    parser.add_argument('--uniquebidpubkeys', required=False, action='store_true', default=False, help="Flag to indicate new bid pubkey generation for each bid")
 
     parser.add_argument('--challengehost', required=False, type=str, default=CHALLENGE_HOST_DEFAULT, help="Challenger host address")
 
