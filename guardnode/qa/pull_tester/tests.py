@@ -40,6 +40,12 @@ if os.name == 'posix':
 
 TESTS_DIR = GUARDNODE_DIR + '/guardnode/qa/tests/'
 
+# Test ocean dir exists
+try: f = open(BUILDDIR+"/src/oceand")
+except Exception as e:
+    print(str(e)+"\nIs Ocean installed and located in the correct place? See guardnode/qa/README.md")
+    exit(0)
+
 #If imported values are not defined then set to zero (or disabled)
 if 'ENABLE_WALLET' not in vars():
     ENABLE_WALLET=0

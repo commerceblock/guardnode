@@ -1,6 +1,6 @@
 # Guardnode
 
-Guardnode daemon responding to client chain coordinator challenges and generating alerts for misbehaviour on the chain.
+Guardnode daemon watches client blockchain and generates alerts for any errors or misbehaviour. In the event of a Coordinator challenge being made on the client chain the Guardnode daemon recognises it and a response is sent immediately.
 
 
 ## Instructions

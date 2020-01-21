@@ -25,23 +25,23 @@ pip3 install pyzmq
 Running tests
 =============
 
-First ensure `oceand` is installed and included in `$PATH`.
+First ensure `oceand` is installed in `$HOME`. If this is not the case edit `guardnode/qa/tests/tests_config.py`.
 
 You can run any single test by calling
 
-    qa/pull_tester/rpc-tests.py <testname>
+    guardnode/qa/pull_tester/rpc-tests.py <testname>
 
 Or you can run any combination of tests by calling
 
-    qa/pull_tester/rpc-tests.py <testname1> <testname2> <testname3> ...
+    guardnode/qa/pull_tester/rpc-tests.py <testname1> <testname2> <testname3> ...
 
 Run the regression test suite with
 
-    qa/pull_tester/rpc-tests.py
+    guardnode/qa/pull_tester/rpc-tests.py
 
 Run all possible tests with
 
-    qa/pull_tester/rpc-tests.py -extended
+    guardnode/qa/pull_tester/rpc-tests.py -extended
 
 By default, tests will be run in parallel. To specify how many jobs to run,
 append `-parallel=n` (default n=4).
