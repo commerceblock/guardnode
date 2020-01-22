@@ -71,7 +71,15 @@ class Challenge(DaemonThread):
         self.logger = logging.getLogger("Challenge")
         self.ocean = connect(self.args.rpchost, self.args.rpcuser, self.args.rpcpass,self.logger)
         self.service_ocean = connect(self.args.servicerpchost, self.args.servicerpcuser, self.args.servicerpcpass,self.logger)
-        self.genesis = self.ocean.getblockhash(0)
+        # if new node started give time for it to catch up
+        while not hasattr(self,'genesis'):
+            try:
+                self.genesis = self.ocean.getblockhash(0)
+            except Exception as e:
+                if "Loading block index..." in e:
+                    time.sleep(1) # wait for node to catch up
+                    self.logger.error("Waiting for node to sync...")
+                else: raise(e)
         self.url = "{}/challengeproof".format(self.args.challengehost)
         # get challenge asset hash
         self.args.challengeasset = get_challenge_asset(self.ocean)
