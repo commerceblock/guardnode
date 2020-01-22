@@ -20,10 +20,10 @@ def connect(host, user, pw, logger):
     except Exception as e:
         if "Connection refused" in str(e):
             logger.error("Node at "+host+" not reachable.")
-            exit(0)
         elif "401 Unauthorized" in str(e):
             logger.error("Authorisation failed for rpc connection to node "+host+".")
-            exit(0)
+        else: raise(e)
+        exit(0)
     return conn
 
 # return assetid of challenge asset in given chain

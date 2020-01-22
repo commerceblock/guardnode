@@ -37,16 +37,7 @@ git clone https://github.com/commerceblock/guardnode.git \
  && cd guardnode
 ```
 
-Start ocean node:
-
-```console
-docker-compose \
-    -p ocean \
-    -f contrib/docker-compose/cb-guardnode-testnet.yml \
-    up -d ocean
-```
-
-Start guardnode:
+Start Ocean tesetnet node and Guardnode:
 
 ```console
 docker-compose \
