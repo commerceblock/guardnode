@@ -76,8 +76,8 @@ class Challenge(DaemonThread):
             try:
                 self.genesis = self.ocean.getblockhash(0)
             except Exception as e:
-                if "Loading block index..." in e:
-                    time.sleep(1) # wait for node to catch up
+                if "Loading block index..." in str(e):
+                    sleep(5) # wait for node to catch up
                     self.logger.error("Waiting for node to sync...")
                 else: raise(e)
         self.url = "{}/challengeproof".format(self.args.challengehost)
