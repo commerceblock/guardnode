@@ -19,7 +19,11 @@ class Alerts(DaemonThread):
         super().__init__()
         self.logger = logging.getLogger("Alerts")
 
-        self.file = open(args.nodelogfile)
+        try:
+            self.file = open(args.nodelogfile)
+        except FileNotFoundError as e:
+            self.logger.error("Log file not found at "+args.nodelogfile)
+            exit(0)
         self.logger.info("Log file read: {}".format(args.nodelogfile))
 
     def run(self):

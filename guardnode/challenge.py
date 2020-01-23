@@ -13,8 +13,18 @@ from .qa.tests.test_framework.key import CECKey
 from .qa.tests.test_framework.authproxy import AuthServiceProxy
 
 
-def connect(host, user, pw):
-    return AuthServiceProxy("http://%s:%s@%s"% (user, pw, host))
+def connect(host, user, pw, logger):
+    conn = AuthServiceProxy("http://%s:%s@%s"% (user, pw, host))
+    try: # Check connection
+        _ = conn.getinfo()
+    except Exception as e:
+        if "Connection refused" in str(e):
+            logger.error("Node at "+host+" not reachable.")
+        elif "401 Unauthorized" in str(e):
+            logger.error("Authorisation failed for rpc connection to node "+host+".")
+        else: raise(e)
+        exit(0)
+    return conn
 
 # return assetid of challenge asset in given chain
 def get_challenge_asset(ocean):
@@ -57,14 +67,20 @@ class Challenge(DaemonThread):
     def __init__(self, args):
         super().__init__()
         self.args = args
-        self.ocean = connect(self.args.rpchost, self.args.rpcuser, self.args.rpcpass)
-        self.genesis = self.ocean.getblockhash(0)
-        self.service_ocean = connect(self.args.servicerpchost, self.args.servicerpcuser, self.args.servicerpcpass)
-        self.url = "{}/challengeproof".format(self.args.challengehost)
-
         logging.getLogger("BitcoinRPC")
         self.logger = logging.getLogger("Challenge")
-
+        self.ocean = connect(self.args.rpchost, self.args.rpcuser, self.args.rpcpass,self.logger)
+        self.service_ocean = connect(self.args.servicerpchost, self.args.servicerpcuser, self.args.servicerpcpass,self.logger)
+        # if new node started give time for it to catch up
+        while not hasattr(self,'genesis'):
+            try:
+                self.genesis = self.ocean.getblockhash(0)
+            except Exception as e:
+                if "Loading block index..." in str(e):
+                    sleep(5) # wait for node to catch up
+                    self.logger.error("Waiting for node to sync...")
+                else: raise(e)
+        self.url = "{}/challengeproof".format(self.args.challengehost)
         # get challenge asset hash
         self.args.challengeasset = get_challenge_asset(self.ocean)
         try:
