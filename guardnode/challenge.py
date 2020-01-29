@@ -116,6 +116,9 @@ class Challenge(DaemonThread):
                 self.set_key(addr)
             self.logger.info("Fee address: {} and pubkey: {}".format(addr, self.client_fee_pubkey))
 
+        self.request = None # currently active request
+        self.bid_txid = None # bid for currently active request
+        
         # Init bid handler
         self.bidhandler = BidHandler(self.service_ocean, args.bidlimit)
 
@@ -123,16 +126,17 @@ class Challenge(DaemonThread):
     # Main loop: await request. Sub loop: run search for challenge
     def run(self):
         self.last_block_height = 0
-        # Wait for request
+        # Wait for request 
         while not self.stop_event.is_set():
-            request = self.check_for_request()
-            if request:
+            self.request = self.check_for_request()
+            if self.request:
                 if hasattr(self,"uniquebidpubkeys"):
                     self.gen_feepubkey() # Gen new pubkey if required
-                self.bid_txid = self.bidhandler.do_request_bid(request, self.client_fee_pubkey)
+                if not self.check_bid_made():
+                    self.bid_txid = self.bidhandler.do_request_bid(self.request, self.client_fee_pubkey)
                 if self.bid_txid is not None: # bid tx sent
                     while not self.stop_event.is_set(): # Wait for challenge on bid
-                        if not self.await_challenge(request):
+                        if not self.await_challenge():
                             break   # request ended
                         sleep(0.1) # seconds
                 else:
@@ -149,20 +153,32 @@ class Challenge(DaemonThread):
             self.logger.error(e)
             self.error = e
         if len(requests) > 0:
-            self.logger.info("Found request: {}".format(requests[0]))
+            if not self.request or not self.request["txid"] == requests[0]["txid"]:
+                self.logger.info("Found request: {}".format(requests[0]))
             return requests[0]
         return False
-
+        
+    # return true if GN bid already made for current request, otherwise return false
+    def check_bid_made(self):
+        if not self.request:
+            return False
+        requestbids = self.service_ocean.getrequestbids(self.request["txid"])["bids"]
+        if any(bid["txid"] == self.bid_txid for bid in requestbids):
+            return True
+        return False
+        
     # Wait for challenge. Return False if service period over, True to continue looping.
     # Respond to challenge if found
-    def await_challenge(self, request):
+    def await_challenge(self):
         try:
             block_height = self.ocean.getblockcount()
-            if block_height > request["endBlockHeight"]:
-                self.logger.info("Request {} ended".format(request["txid"]))
+            if block_height > self.request["endBlockHeight"]:
+                self.logger.info("Request {} ended".format(self.request["txid"]))
+                self.request = None
+                self.bid_txid = None
                 return False
-            elif block_height < request["startBlockHeight"]:
-                self.logger.info("Request {} not started yet".format(request["txid"]))
+            elif block_height < self.request["startBlockHeight"]:
+                self.logger.info("Request {} not started yet".format(self.request["txid"]))
                 sleep(self.args.serviceblocktime)
                 return True
             elif block_height > self.last_block_height:
@@ -171,7 +187,7 @@ class Challenge(DaemonThread):
                 if challenge_txid != None:
                     self.logger.info("Challenge found at height: {}".format(block_height))
                     self.respond(challenge_txid)
-                    self.last_block_height = block_height
+                self.last_block_height = block_height
                 return True
         except Exception as e:
             self.logger.error(e)
@@ -187,7 +203,7 @@ class Challenge(DaemonThread):
             self.logger.error("Could not connect to coordinator to send response data:\n{}".format(data))
             return
 
-        self.logger.info("Response sent\nsignature:\n{}\ntxid:\n{}".format(sig_hex, challenge_txid))
+        self.logger.info("Response sent\nsignature:\n{}\ntxid:\n{}".format(data[data.find("sig")+7:-2], challenge_txid))
         if r.status_code != 200:
             self.logger.error(r.content)
 

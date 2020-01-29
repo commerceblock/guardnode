@@ -114,7 +114,11 @@ class IntegrationTest(BitcoinTestFramework):
         assert(GN_log_contains(self.options.tmpdir,'Challenge found at height: '+str(self.nodes[0].getblockcount())))
         time.sleep(WAIT_FOR_WORK)
         assert(GN_log_contains(self.options.tmpdir,'Could not connect to coordinator to send response data:'))
-
-
+        
+        # Check GN continues to watch request after challenge response
+        self.nodes[0].generate(1)
+        time.sleep(WAIT_FOR_WORK)
+        assert(GN_log_contains(self.options.tmpdir,'Current block height: '+str(self.nodes[0].getblockcount())))
+        
 if __name__ == '__main__':
     IntegrationTest().main()

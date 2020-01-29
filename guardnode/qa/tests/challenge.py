@@ -82,9 +82,22 @@ class ChallengeTest(BitcoinTestFramework):
         # Check correct request fetched for each genesis
         assert_equal(challenge.check_for_request()["genesisBlock"],genesis)
         challenge.genesis = new_genesis
-        assert_equal(challenge.check_for_request()["genesisBlock"],new_genesis)
+        challenge.request = challenge.check_for_request()
+        assert_equal(challenge.request["genesisBlock"],new_genesis)
 
 
+        # Test check_bid_made()
+        assert(not challenge.check_bid_made())
+        tx = self.nodes[0].listunspent(1, 9999999, [], True, "CBT")[0]
+        change = float(tx["amount"]) - 5 - 0.001
+        addr = self.nodes[0].getnewaddress()
+        bidtxraw = self.nodes[0].createrawbidtx([{"txid":tx["txid"],"vout":tx["vout"]}],{"feePubkey":pubkey,"pubkey":pubkey,
+            "value":5,"change":change,"changeAddress":addr,"fee":0.001,"endBlockHeight":blockcount+20,"requestTxid":txid})
+        challenge.bid_txid = self.nodes[0].sendrawtransaction(self.nodes[0].signrawtransaction(bidtxraw)["hex"])    
+        self.nodes[0].generate(1)
+        assert(challenge.check_bid_made())
+        
+        
         # Test gen_feepubkey() and set_key()
         addr = challenge.gen_feepubkey()
         assert_is_hex_string(challenge.client_fee_pubkey) # check exists
@@ -112,15 +125,15 @@ class ChallengeTest(BitcoinTestFramework):
         # Test await_challenge()
         block_count = self.nodes[0].getblockcount()
         challenge.last_block_height = block_count
-        request = {"endBlockHeight":block_count+2,"startBlockHeight":block_count+1,"txid":"1234"}
+        challenge.request = {"endBlockHeight":block_count+2,"startBlockHeight":block_count+1,"txid":"1234"}
         # Check request not yet started
-        assert_equal(challenge.await_challenge(request),True)
+        assert_equal(challenge.await_challenge(),True)
         # Check Challenge asset check called
         self.nodes[0].generate(1)
-        assert_equal(challenge.await_challenge(request),True)
+        assert_equal(challenge.await_challenge(),True)
         # Check request ended
         self.nodes[0].generate(2)
-        assert(not challenge.await_challenge(request))
+        assert(not challenge.await_challenge())
 
 
         # Test generate_response()

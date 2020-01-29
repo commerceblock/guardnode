@@ -129,7 +129,7 @@ class BiddingTest(BitcoinTestFramework):
         outputs["change"] = Decimal(format(tx["amount"] - Decimal(outputs["value"] - outputs["fee"]),".8g"))
         inputs.append({"txid":tx["txid"],"vout":tx["vout"]})
         bid_handler.testing = True
-        fee = bid_handler.estimate_fee(inputs,True) # identical function as in BidHandler but without estimesmartfee call
+        fee = bid_handler.estimate_fee(inputs,True) 
         rawbidtx = self.nodes[0].createrawbidtx(inputs,outputs)
         signedrawbidtx = self.nodes[0].signrawtransaction(rawbidtx)
         signedrawbidtx_size = int(len(signedrawbidtx["hex"])/2)+1
@@ -145,7 +145,7 @@ class BiddingTest(BitcoinTestFramework):
         amount = tx["amount"]
         outputs["change"] = Decimal(format(amount - Decimal(outputs["value"] - outputs["fee"]),".8g"))
         inputs.append({"txid":tx["txid"],"vout":tx["vout"]})
-        fee = bid_handler.estimate_fee(inputs,True) # identical function as in BidHandler
+        fee = bid_handler.estimate_fee(inputs,True)
         rawbidtx = self.nodes[0].createrawbidtx(inputs,outputs)
         signedrawbidtx = self.nodes[0].signrawtransaction(rawbidtx)
         signedrawbidtx_size = int(len(signedrawbidtx["hex"])/2)+1
@@ -160,7 +160,7 @@ class BiddingTest(BitcoinTestFramework):
         amount += tx["amount"]
         inputs.append({"txid":tx["txid"],"vout":tx["vout"]})
         outputs["change"] = Decimal(format(amount - Decimal(outputs["value"] - outputs["fee"]),".8g"))
-        fee = bid_handler.estimate_fee(inputs,True) # identical function as in BidHandler
+        fee = bid_handler.estimate_fee(inputs,True)
         rawbidtx = self.nodes[0].createrawbidtx(inputs,outputs)
         signedrawbidtx = self.nodes[0].signrawtransaction(rawbidtx)
         signedrawbidtx_size = int(len(signedrawbidtx["hex"])/2)+1
@@ -176,7 +176,7 @@ class BiddingTest(BitcoinTestFramework):
             amount += tx["amount"]
             inputs.append({"txid":tx["txid"],"vout":tx["vout"]})
         outputs["change"] = Decimal(format(amount - Decimal(outputs["value"] - outputs["fee"]),".8g"))
-        fee = bid_handler.estimate_fee(inputs,True) # identical function as in BidHandler
+        fee = bid_handler.estimate_fee(inputs,True)
         rawbidtx = self.nodes[0].createrawbidtx(inputs,outputs)
         signedrawbidtx = self.nodes[0].signrawtransaction(rawbidtx)
         signedrawbidtx_size = int(len(signedrawbidtx["hex"])/2)+1
