@@ -120,5 +120,12 @@ class IntegrationTest(BitcoinTestFramework):
         time.sleep(WAIT_FOR_WORK)
         assert(GN_log_contains(self.options.tmpdir,'Current block height: '+str(self.nodes[0].getblockcount())))
         
+        
+        # Test previous bid picked up by GN upon restart
+        stop_guardnode(guardnode)
+        guardnode = start_guardnode(self.options.tmpdir,0)
+        time.sleep(WAIT_FOR_WORK)
+        assert(GN_log_contains(self.options.tmpdir,"Previously made bid found: {}".format(bids[2])))
+        
 if __name__ == '__main__':
     IntegrationTest().main()

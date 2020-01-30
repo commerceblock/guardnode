@@ -63,7 +63,29 @@ class Challenge(DaemonThread):
         self.set_key(address)
         self.client_fee_pubkey = self.service_ocean.validateaddress(address)["pubkey"]
         return address
-
+        
+    # Check if wallet has made previous bid which is still active. Prevents bidding
+    # twice in the event of guardnode shut down in the middle of a service period
+    # Return bid txid if found, None otherwise
+    def check_for_bid_from_wallet(self):
+        try:
+            # check for bids in currently active request
+            request = self.service_ocean.getrequests(self.genesis)[0]
+            bids = self.service_ocean.getrequestbids(request["txid"])["bids"]
+            if not len(bids): # no bids
+                return None
+            # check for bid with output address owned by this wallet
+            list_unspent = self.service_ocean.listunspent(0, 9999999, [], True, "CBT")
+            for unspent in list_unspent:
+                for bid in bids:
+                    # assume that if wallet regards bid output as owned then bid was made by this wallet
+                    if unspent["txid"] == bid["txid"]: 
+                        self.logger.info("Previously made bid found: {}".format(bid))
+                        return bid["txid"]
+            return None
+        except Exception:
+            return None
+        
     def __init__(self, args):
         super().__init__()
         self.args = args
@@ -117,7 +139,7 @@ class Challenge(DaemonThread):
             self.logger.info("Fee address: {} and pubkey: {}".format(addr, self.client_fee_pubkey))
 
         self.request = None # currently active request
-        self.bid_txid = None # bid for currently active request
+        self.bid_txid = self.check_for_bid_from_wallet() 
         
         # Init bid handler
         self.bidhandler = BidHandler(self.service_ocean, args.bidlimit)
