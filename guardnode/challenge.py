@@ -171,13 +171,13 @@ class Challenge(DaemonThread):
     def check_for_request(self):
         try:
             requests = self.service_ocean.getrequests(self.genesis)
+            if len(requests) > 0:
+                if not self.request or not self.request["txid"] == requests[0]["txid"]:
+                    self.logger.info("Found request: {}".format(requests[0]))
+                    return requests[0]
         except Exception as e:
             self.logger.error(e)
             self.error = e
-        if len(requests) > 0:
-            if not self.request or not self.request["txid"] == requests[0]["txid"]:
-                self.logger.info("Found request: {}".format(requests[0]))
-            return requests[0]
         return False
         
     # return true if GN bid already made for current request, otherwise return false
