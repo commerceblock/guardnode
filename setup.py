@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 import os
 
 setup(name='guardnode',
-      version='0.1',
+      version='0.3',
       description='Guardnode Daemon',
       author='CommerceBlock',
       author_email='nikolaos@commerceblock.com',
