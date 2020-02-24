@@ -63,9 +63,9 @@ class Challenge(DaemonThread):
         self.set_key(address)
         self.client_fee_pubkey = self.service_ocean.validateaddress(address)["pubkey"]
         return address
-        
+
     # Check if wallet has made previous bid which is still active. Prevents bidding
-    # twice in the event of guardnode shut down in the middle of a service period
+    # twice in the event of guardnode shut down in the middle of a service period.
     # Return bid txid if found, None otherwise
     def check_for_bid_from_wallet(self):
         try:
@@ -74,18 +74,28 @@ class Challenge(DaemonThread):
             bids = self.service_ocean.getrequestbids(request["txid"])["bids"]
             if not len(bids): # no bids
                 return None
-            # check for bid with output address owned by this wallet
-            list_unspent = self.service_ocean.listunspent(0, 9999999, [], True, "CBT")
-            for unspent in list_unspent:
+
+            # Get transactions made since request tx was confirmed
+            request_age = self.service_ocean.getblockcount() - request["confirmedBlockHeight"] # in blocks
+            oldest_tx_age = 0
+            txs = []
+            i=0
+            while (oldest_tx_age < request_age):
+                txs += self.service_ocean.listtransactions("*",10,i)
+                oldest_tx_age = txs[-1]["confirmations"]
+                i += 10 # get 10 more txs if request age not reached
+
+            # Search for bid tx in all txs made since request confirmed
+            txs.reverse() # Use first found as this GNs bid.
+            for tx in txs:
                 for bid in bids:
-                    # assume that if wallet regards bid output as owned then bid was made by this wallet
-                    if unspent["txid"] == bid["txid"]: 
+                    if tx["txid"] == bid["txid"]:
                         self.logger.info("Previously made bid found: {}".format(bid))
                         return bid["txid"]
             return None
         except Exception:
             return None
-        
+
     def __init__(self, args):
         super().__init__()
         self.args = args
@@ -139,8 +149,8 @@ class Challenge(DaemonThread):
             self.logger.info("Fee address: {} and pubkey: {}".format(addr, self.client_fee_pubkey))
 
         self.request = None # currently active request
-        self.bid_txid = self.check_for_bid_from_wallet() 
-        
+        self.bid_txid = self.check_for_bid_from_wallet()
+
         # Init bid handler
         self.bidhandler = BidHandler(self.service_ocean, args.bidlimit)
 
@@ -148,13 +158,13 @@ class Challenge(DaemonThread):
     # Main loop: await request. Sub loop: run search for challenge
     def run(self):
         self.last_block_height = 0
-        # Wait for request 
+        # Wait for request
         while not self.stop_event.is_set():
             self.request = self.check_for_request()
             if self.request:
                 if hasattr(self,"uniquebidpubkeys"):
                     self.gen_feepubkey() # Gen new pubkey if required
-                if not self.check_bid_made():
+                if self.check_ready_for_bid():
                     self.bid_txid = self.bidhandler.do_request_bid(self.request, self.client_fee_pubkey)
                 if self.bid_txid is not None: # bid tx sent
                     while not self.stop_event.is_set(): # Wait for challenge on bid
@@ -179,21 +189,31 @@ class Challenge(DaemonThread):
             self.logger.error(e)
             self.error = e
         return False
-        
-    # return true if GN bid already made for current request, otherwise return false
-    def check_bid_made(self):
+
+    # Check if ready for bid to be made, otherwise return false
+    def check_ready_for_bid(self):
         if not self.request:
             return False
+
+        # bid already made for current request
         requestbids = self.service_ocean.getrequestbids(self.request["txid"])["bids"]
         if any(bid["txid"] == self.bid_txid for bid in requestbids):
-            return True
-        return False
-        
+            return False
+
+        # no tickets left
+        num_bids = len(self.service_ocean.getrequestbids(self.request["txid"])["bids"])
+        if num_bids >= self.request["numTickets"]:
+            self.logger.warn("No tickets left on this auction.")
+            return False
+
+        # otherwise bid
+        return True
+
     # Wait for challenge. Return False if service period over, True to continue looping.
     # Respond to challenge if found
     def await_challenge(self):
         try:
-            block_height = self.ocean.getblockcount()
+            block_height = self.service_ocean.getblockcount()
             if block_height > self.request["endBlockHeight"]:
                 self.logger.info("Request {} ended".format(self.request["txid"]))
                 self.request = None

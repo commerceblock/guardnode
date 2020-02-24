@@ -89,24 +89,24 @@ class ChallengeTest(BitcoinTestFramework):
 
 
         # Test check_for_bid_from_wallet method
-        # No bids 
+        # No bids
         assert_equal(challenge.check_for_bid_from_wallet(),None)
-        
+
         # make bid with different wallet receive address
         tx = self.nodes[0].listunspent(1, 9999999, [], True, "CBT")[0]
         change = float(tx["amount"]) - 5 - 0.001
         addr = self.nodes[1].getnewaddress() # receive address not in service_ocean wallet
         input = [{"txid":tx["txid"],"vout":tx["vout"]}]
         bidtxraw = self.nodes[0].createrawbidtx(input,{"feePubkey":pubkey,"pubkey":pubkey,
-            "value":5,"change":change,"changeAddress":addr,"fee":0.001,"endBlockHeight":blockcount+20,"requestTxid":txid})    
+            "value":5,"change":change,"changeAddress":addr,"fee":0.001,"endBlockHeight":blockcount+20,"requestTxid":txid})
         nonwalletbidtx = self.nodes[0].sendrawtransaction(self.nodes[0].signrawtransaction(bidtxraw)["hex"])
         self.nodes[0].generate(0)
         # test un-owned bid returns no bid_txid
         assert_equal(challenge.check_for_bid_from_wallet(),None)
-        
-        
-        # Test check_bid_made()
-        assert(not challenge.check_bid_made()) # no bid made
+
+
+        # Test check_ready_for_bid()
+        assert(challenge.check_ready_for_bid()) # no bid made
         # make bid
         tx = self.nodes[0].listunspent(100, 9999999, [], False, "CBT")[0]
         change = float(tx["amount"]) - 5 - 0.001
@@ -114,15 +114,18 @@ class ChallengeTest(BitcoinTestFramework):
         input = [{"txid":tx["txid"],"vout":tx["vout"]}]
         bidtxraw = self.nodes[0].createrawbidtx(input,{"feePubkey":pubkey,"pubkey":pubkey,
             "value":5,"change":change,"changeAddress":addr,"fee":0.001,"endBlockHeight":blockcount+20,"requestTxid":txid})
-        challenge.bid_txid = self.nodes[0].sendrawtransaction(self.nodes[0].signrawtransaction(bidtxraw)["hex"])    
+        challenge.bid_txid = self.nodes[0].sendrawtransaction(self.nodes[0].signrawtransaction(bidtxraw)["hex"])
         self.nodes[0].generate(1)
-        assert(challenge.check_bid_made()) # bid made
-        
-        
-        # Test check_for_bid_from_wallet method with wallet-ownder bid active
+        assert(not challenge.check_ready_for_bid()) # bid made
+        # all tickets sold
+        challenge.request["numTickets"] = 1
+        assert(not challenge.check_ready_for_bid())
+
+
+        # Test check_for_bid_from_wallet method with wallet-owned bid active
         assert_equal(challenge.check_for_bid_from_wallet(),challenge.bid_txid)
-                
-            
+
+
         # Test gen_feepubkey() and set_key()
         addr = challenge.gen_feepubkey()
         assert_is_hex_string(challenge.client_fee_pubkey) # check exists
