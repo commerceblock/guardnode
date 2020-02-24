@@ -124,6 +124,8 @@ class ChallengeTest(BitcoinTestFramework):
 
         # Test check_for_bid_from_wallet method with wallet-owned bid active
         assert_equal(challenge.check_for_bid_from_wallet(),challenge.bid_txid)
+        # check key
+
 
 
         # Test gen_feepubkey() and set_key()

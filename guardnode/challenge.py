@@ -91,6 +91,9 @@ class Challenge(DaemonThread):
                 for bid in bids:
                     if tx["txid"] == bid["txid"]:
                         self.logger.info("Previously made bid found: {}".format(bid))
+                        # set key to feepubkey's private key for signing of challenges
+                        addr = key_to_p2pkh_version(bid["feePubKey"], self.nodeaddrprefix)
+                        set_key(addr)
                         return bid["txid"]
             return None
         except Exception:
@@ -121,6 +124,12 @@ class Challenge(DaemonThread):
             self.logger.error("No Challenge asset found in client chain")
             sys.exit(1)
 
+        # get address prefix
+        self.nodeaddrprefix = self.ocean.getsidechaininfo()["addr_prefixes"]["PUBKEY_ADDRESS"]
+        if not hasattr(self, 'nodeaddrprefix'):
+            self.logger.error("Error getting address prefix - check node version")
+            sys.exit(1)
+
         # bidpubkey:
         # - if set then use for each bid
         # - if not set generate new and use for each bid
@@ -133,13 +142,8 @@ class Challenge(DaemonThread):
                 addr = self.gen_feepubkey()
             else:
                 self.client_fee_pubkey = args.bidpubkey
-                # get address prefix
-                self.args.nodeaddrprefix = self.ocean.getsidechaininfo()["addr_prefixes"]["PUBKEY_ADDRESS"]
-                if not hasattr(self.args, 'nodeaddrprefix'):
-                    self.logger.error("Error getting address prefix - check node version")
-                    sys.exit(1)
                 # test valid key and imported
-                addr = key_to_p2pkh_version(self.client_fee_pubkey, args.nodeaddrprefix)
+                addr = key_to_p2pkh_version(self.client_fee_pubkey, self.nodeaddrprefix)
                 validate = self.ocean.validateaddress(addr)
                 if validate['ismine'] == False:
                     self.logger.error("Key for address {} is missing from the wallet".format(addr))
