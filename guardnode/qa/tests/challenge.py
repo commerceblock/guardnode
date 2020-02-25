@@ -64,8 +64,9 @@ class ChallengeTest(BitcoinTestFramework):
         self.nodes[0].generate(1)
         assert_equal(len(self.nodes[0].getrequests()),1)
 
-        # Test check_for_request method returns request
-        assert_equal(challenge.check_for_request()["genesisBlock"], genesis) # return request
+        # Test check_for_request method sets challenge.request
+        assert(challenge.check_for_request())
+        assert_equal(challenge.request["genesisBlock"], genesis) # return request
 
         # Make another request with different genesis
         blockcount = self.nodes[0].getblockcount()
@@ -82,9 +83,10 @@ class ChallengeTest(BitcoinTestFramework):
         assert_equal(len(self.nodes[0].getrequests()),2)
 
         # Check correct request fetched for each genesis
-        assert_equal(challenge.check_for_request()["genesisBlock"],genesis)
+        assert(challenge.check_for_request())
+        assert_equal(challenge.request["genesisBlock"],genesis)
         challenge.genesis = new_genesis
-        challenge.request = challenge.check_for_request()
+        assert(challenge.check_for_request())
         assert_equal(challenge.request["genesisBlock"],new_genesis)
 
 
@@ -134,6 +136,7 @@ class ChallengeTest(BitcoinTestFramework):
         # Test with unconfirmed tx
         # make bid on first request but do not mine
         challenge.genesis = genesis
+        challenge.check_for_request() # update request 
         tx = self.nodes[0].listunspent(100, 9999999, [], False, "CBT")[0]
         change = float(tx["amount"]) - 5 - 0.001
         input = [{"txid":tx["txid"],"vout":tx["vout"]}]

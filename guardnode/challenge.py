@@ -12,6 +12,7 @@ from .qa.tests.test_framework.address import key_to_p2pkh_version
 from .qa.tests.test_framework.key import CECKey
 from .qa.tests.test_framework.authproxy import AuthServiceProxy
 
+expos = list(map(lambda n: n**2,range(1,15)))
 
 def connect(host, user, pw, logger):
     conn = AuthServiceProxy("http://%s:%s@%s"% (user, pw, host))
@@ -70,11 +71,10 @@ class Challenge(DaemonThread):
     def check_for_bid_from_wallet(self):
         try:
             # check for bids in currently active request
-            request = self.service_ocean.getrequests(self.genesis)[0]
-            bids = self.service_ocean.getrequestbids(request["txid"])["bids"]
+            bids = self.service_ocean.getrequestbids(self.request["txid"])["bids"]
 
             # Get transactions made since request tx was confirmed
-            request_age = self.service_ocean.getblockcount() - request["confirmedBlockHeight"] # in blocks
+            request_age = self.service_ocean.getblockcount() - self.request["confirmedBlockHeight"] + 1 # in blocks
             txs = self.service_ocean.listunspent(0,request_age,[],True)
 
             # Search for bid tx in all txs made since request confirmed
@@ -83,7 +83,7 @@ class Challenge(DaemonThread):
                 if tx["confirmations"] == 0: # check if unconfirmed tx is bid
                     tx = self.service_ocean.getrawtransaction(tx["txid"],True)
                     # check if request txid in any tx output scriptPubKey
-                    if any(hex_str_rev_hex_str(request["txid"]) in vout["scriptPubKey"]["hex"] for vout in tx["vout"]):
+                    if any(hex_str_rev_hex_str(self.request["txid"]) in vout["scriptPubKey"]["hex"] for vout in tx["vout"]):
                         self.logger.info("Previously made bid found. Txid: {}".format(tx["txid"]))
                         return tx["txid"]
                 for bid in bids: # quicker to simply compare txids for confirmed txs
@@ -92,7 +92,6 @@ class Challenge(DaemonThread):
                         # set key to feepubkey's private key for signing of challenges
                         addr = key_to_p2pkh_version(bid["feePubKey"], self.nodeaddrprefix)
                         self.set_key(addr)
-                        self.logger.info("Previously made bid found: {}".format(bid))
                         return bid["txid"]
             return None
         except Exception:
@@ -105,6 +104,7 @@ class Challenge(DaemonThread):
         self.logger = logging.getLogger("Challenge")
         self.ocean = connect(self.args.rpchost, self.args.rpcuser, self.args.rpcpass,self.logger)
         self.service_ocean = connect(self.args.servicerpchost, self.args.servicerpcuser, self.args.servicerpcpass,self.logger)
+        self.no_request_msg_count = 0
         # if new node started give time for it to catch up
         while not hasattr(self,'genesis'):
             try:
@@ -153,7 +153,7 @@ class Challenge(DaemonThread):
 
         # initial check for request and previously made bid
         self.request = None
-        self.request = self.check_for_request()
+        self.check_for_request()
         self.bid_txid = self.check_for_bid_from_wallet()
 
         # Init bid handler
@@ -165,8 +165,8 @@ class Challenge(DaemonThread):
         self.last_block_height = 0
         # Wait for request
         while not self.stop_event.is_set():
-            self.request = self.check_for_request()
-            if self.request:
+            if self.check_for_request():
+                self.no_request_msg_count = 0
                 if hasattr(self,"uniquebidpubkeys"):
                     self.gen_feepubkey() # Gen new pubkey if required
                 if self.check_ready_for_bid():
@@ -175,11 +175,13 @@ class Challenge(DaemonThread):
                     while not self.stop_event.is_set(): # Wait for challenge on bid
                         if not self.await_challenge():
                             break   # request ended
-                        sleep(0.1) # seconds
+                        sleep(1) # seconds
                 else:
                     sleep(self.args.serviceblocktime)
             else:
-                self.logger.info("No active requests for genesis: {}".format(self.genesis))
+                self.no_request_msg_count += 1
+                if self.no_request_msg_count in expos: # gradually get more quiet
+                    self.logger.info("No active requests for genesis: {}.".format(self.genesis))
                 sleep(self.args.serviceblocktime)
 
     # look for and return active request in service chain
@@ -187,30 +189,33 @@ class Challenge(DaemonThread):
         try:
             requests = self.service_ocean.getrequests(self.genesis)
             if len(requests) > 0:
-                if not self.request or not self.request["txid"] == requests[0]["txid"]:
+                if not self.request == requests[0]:
+                    self.request = requests[0]
                     self.logger.info("Found request: {}".format(requests[0]))
-                    return requests[0]
+                return True
         except Exception as e:
             self.logger.error(e)
             self.error = e
-        return None
+        return False
 
     # Check if ready for bid to be made, otherwise return false
     def check_ready_for_bid(self):
         if not self.request:
             return False
 
-        # bid already made for current request
-        requestbids = self.service_ocean.getrequestbids(self.request["txid"])["bids"]
-        if any(bid["txid"] == self.bid_txid for bid in requestbids):
-            return False
+        try:
+            # bid already made for current request
+            requestbids = self.service_ocean.getrequestbids(self.request["txid"])["bids"]
+            if any(bid["txid"] == self.bid_txid for bid in requestbids):
+                return False
 
-        # no tickets left
-        num_bids = len(self.service_ocean.getrequestbids(self.request["txid"])["bids"])
-        if num_bids >= self.request["numTickets"]:
-            self.logger.warn("No tickets left on this auction.")
-            return False
-
+            # no tickets left
+            num_bids = len(self.service_ocean.getrequestbids(self.request["txid"])["bids"])
+            if num_bids >= self.request["numTickets"]:
+                self.logger.warn("No tickets left on this auction.")
+                return False
+        except Exception: # thrown if no bids on request -> ready for bid
+            pass
         # otherwise bid
         return True
 
@@ -219,7 +224,7 @@ class Challenge(DaemonThread):
     def await_challenge(self):
         try:
             block_height = self.service_ocean.getblockcount()
-            if block_height > self.request["endBlockHeight"]:
+            if block_height >= self.request["endBlockHeight"]:
                 self.logger.info("Request {} ended".format(self.request["txid"]))
                 self.request = None
                 self.bid_txid = None
@@ -227,7 +232,6 @@ class Challenge(DaemonThread):
             elif block_height < self.request["startBlockHeight"]:
                 self.logger.info("Request {} not started yet".format(self.request["txid"]))
                 sleep(self.args.serviceblocktime)
-                return True
             elif block_height > self.last_block_height:
                 self.logger.info("Current block height: {}".format(block_height))
                 challenge_txid = asset_in_block(self.ocean, self.rev_challengeasset, block_height)
@@ -235,7 +239,7 @@ class Challenge(DaemonThread):
                     self.logger.info("Challenge found at height: {}".format(block_height))
                     self.respond(challenge_txid)
                 self.last_block_height = block_height
-                return True
+            return True
         except Exception as e:
             self.logger.error(e)
             self.error = e
