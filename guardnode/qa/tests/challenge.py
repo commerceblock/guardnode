@@ -60,7 +60,7 @@ class ChallengeTest(BitcoinTestFramework):
         assert(not challenge.check_for_request()) # return False when no request
 
         # Make request
-        requesttxid = make_request(self.nodes[0])
+        requesttxid1 = make_request(self.nodes[0])
         self.nodes[0].generate(1)
         assert_equal(len(self.nodes[0].getrequests()),1)
 
@@ -77,7 +77,7 @@ class ChallengeTest(BitcoinTestFramework):
         "startBlockHeight": blockcount+10, "tickets": 10, "startPrice": 5, "value": unspent[0]["amount"], "pubkey": pubkey}
         tx = self.nodes[0].createrawrequesttx(inputs, outputs)
         signedtx = self.nodes[0].signrawtransaction(tx)
-        txid = self.nodes[0].sendrawtransaction(signedtx["hex"])
+        requesttxid2 = self.nodes[0].sendrawtransaction(signedtx["hex"])
         self.nodes[0].generate(1)
         assert_equal(len(self.nodes[0].getrequests()),2)
 
@@ -88,7 +88,7 @@ class ChallengeTest(BitcoinTestFramework):
         assert_equal(challenge.request["genesisBlock"],new_genesis)
 
 
-        # Test check_for_bid_from_wallet method
+        # Test check_for_bid_from_wallet() method
         # No bids
         assert_equal(challenge.check_for_bid_from_wallet(),None)
 
@@ -98,10 +98,11 @@ class ChallengeTest(BitcoinTestFramework):
         addr = self.nodes[1].getnewaddress() # receive address not in service_ocean wallet
         input = [{"txid":tx["txid"],"vout":tx["vout"]}]
         bidtxraw = self.nodes[0].createrawbidtx(input,{"feePubkey":pubkey,"pubkey":pubkey,
-            "value":5,"change":change,"changeAddress":addr,"fee":0.001,"endBlockHeight":blockcount+20,"requestTxid":txid})
+            "value":5,"change":change,"changeAddress":addr,"fee":0.001,"endBlockHeight":blockcount+20,"requestTxid":requesttxid2})
         nonwalletbidtx = self.nodes[0].sendrawtransaction(self.nodes[0].signrawtransaction(bidtxraw)["hex"])
-        self.nodes[0].generate(0)
-        # test un-owned bid returns no bid_txid
+        self.nodes[0].generate(1)
+
+        # Test un-owned bid returns no bid_txid
         assert_equal(challenge.check_for_bid_from_wallet(),None)
 
 
@@ -113,21 +114,33 @@ class ChallengeTest(BitcoinTestFramework):
         addr = self.nodes[0].getnewaddress()
         input = [{"txid":tx["txid"],"vout":tx["vout"]}]
         bidtxraw = self.nodes[0].createrawbidtx(input,{"feePubkey":pubkey,"pubkey":pubkey,
-            "value":5,"change":change,"changeAddress":addr,"fee":0.001,"endBlockHeight":blockcount+20,"requestTxid":txid})
+        "value":5,"change":change,"changeAddress":addr,"fee":0.001,"endBlockHeight":blockcount+20,"requestTxid":requesttxid2})
         challenge.bid_txid = self.nodes[0].sendrawtransaction(self.nodes[0].signrawtransaction(bidtxraw)["hex"])
         self.nodes[0].generate(1)
         assert(not challenge.check_ready_for_bid()) # bid already made - return false
         # all tickets sold
         challenge.request["numTickets"] = 1
         assert(not challenge.check_ready_for_bid()) # all tickets sold - return false
+        challenge.request["numTickets"] = 10
 
 
-        # Test check_for_bid_from_wallet method with wallet-owned bid active
+        # Test check_for_bid_from_wallet() wallet-owned bid returns bid_txid
         assert_equal(challenge.check_for_bid_from_wallet(),challenge.bid_txid)
         # check key set to corresponding priv key to bids feepubkey
         request = self.nodes[0].getrequestbids(challenge.request["txid"])
         bidfeepubkey = next(bid["feePubKey"] for bid in request["bids"] if bid["txid"] == challenge.bid_txid)
         assert_equal(CPubKey(challenge.key.get_pubkey()).hex(),bidfeepubkey)
+
+        # Test with unconfirmed tx
+        # make bid on first request but do not mine
+        challenge.genesis = genesis
+        tx = self.nodes[0].listunspent(100, 9999999, [], False, "CBT")[0]
+        change = float(tx["amount"]) - 5 - 0.001
+        input = [{"txid":tx["txid"],"vout":tx["vout"]}]
+        bidtxraw = self.nodes[0].createrawbidtx(input,{"feePubkey":pubkey,"pubkey":pubkey,
+        "value":5,"change":change,"changeAddress":addr,"fee":0.001,"endBlockHeight":blockcount+19,"requestTxid":requesttxid1})
+        challenge.bid_txid = self.nodes[0].sendrawtransaction(self.nodes[0].signrawtransaction(bidtxraw)["hex"])
+        assert_equal(challenge.check_for_bid_from_wallet(),challenge.bid_txid) # bid tx found
 
 
         # Test gen_feepubkey() and set_key()
@@ -169,14 +182,14 @@ class ChallengeTest(BitcoinTestFramework):
 
 
         # Test generate_response()
-        challenge.bid_txid = txid
-        data, headers = challenge.generate_response(txid)
+        challenge.bid_txid = requesttxid2
+        data, headers = challenge.generate_response(requesttxid2)
         assert(data)
         assert(headers)
         # Check sig against public key
         pubkey = CPubKey(hex_str_to_bytes(challenge.client_fee_pubkey))
         sig = data[data.find("sig")+7:-2]
-        assert(pubkey.verify(hex_str_to_rev_bytes(txid),hex_str_to_bytes(sig)))
+        assert(pubkey.verify(hex_str_to_rev_bytes(requesttxid2),hex_str_to_bytes(sig)))
 
 
 if __name__ == '__main__':

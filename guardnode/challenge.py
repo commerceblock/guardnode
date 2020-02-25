@@ -72,28 +72,27 @@ class Challenge(DaemonThread):
             # check for bids in currently active request
             request = self.service_ocean.getrequests(self.genesis)[0]
             bids = self.service_ocean.getrequestbids(request["txid"])["bids"]
-            if not len(bids): # no bids
-                return None
 
             # Get transactions made since request tx was confirmed
             request_age = self.service_ocean.getblockcount() - request["confirmedBlockHeight"] # in blocks
-            oldest_tx_age = 0
-            txs = []
-            i=0
-            while (oldest_tx_age < request_age):
-                txs += self.service_ocean.listtransactions("*",10,i)
-                oldest_tx_age = txs[-1]["confirmations"]
-                i += 10 # get 10 more txs if request age not reached
+            txs = self.service_ocean.listunspent(0,request_age,[],True)
 
             # Search for bid tx in all txs made since request confirmed
             txs.reverse() # Use first found as this GNs bid.
             for tx in txs:
-                for bid in bids:
+                if tx["confirmations"] == 0: # check if unconfirmed tx is bid
+                    tx = self.service_ocean.getrawtransaction(tx["txid"],True)
+                    # check if request txid in any tx output scriptPubKey
+                    if any(hex_str_rev_hex_str(request["txid"]) in vout["scriptPubKey"]["hex"] for vout in tx["vout"]):
+                        self.logger.info("Previously made bid found. Txid: {}".format(tx["txid"]))
+                        return tx["txid"]
+                for bid in bids: # quicker to simply compare txids for confirmed txs
                     if tx["txid"] == bid["txid"]:
                         self.logger.info("Previously made bid found: {}".format(bid))
                         # set key to feepubkey's private key for signing of challenges
                         addr = key_to_p2pkh_version(bid["feePubKey"], self.nodeaddrprefix)
                         self.set_key(addr)
+                        self.logger.info("Previously made bid found: {}".format(bid))
                         return bid["txid"]
             return None
         except Exception:
@@ -152,7 +151,9 @@ class Challenge(DaemonThread):
                 self.set_key(addr)
             self.logger.info("Fee address: {} and pubkey: {}".format(addr, self.client_fee_pubkey))
 
-        self.request = None # currently active request
+        # initial check for request and previously made bid
+        self.request = None
+        self.request = self.check_for_request()
         self.bid_txid = self.check_for_bid_from_wallet()
 
         # Init bid handler
@@ -192,7 +193,7 @@ class Challenge(DaemonThread):
         except Exception as e:
             self.logger.error(e)
             self.error = e
-        return False
+        return None
 
     # Check if ready for bid to be made, otherwise return false
     def check_ready_for_bid(self):
