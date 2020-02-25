@@ -93,7 +93,7 @@ class Challenge(DaemonThread):
                         self.logger.info("Previously made bid found: {}".format(bid))
                         # set key to feepubkey's private key for signing of challenges
                         addr = key_to_p2pkh_version(bid["feePubKey"], self.nodeaddrprefix)
-                        set_key(addr)
+                        self.set_key(addr)
                         return bid["txid"]
             return None
         except Exception:
