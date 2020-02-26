@@ -52,17 +52,25 @@ def asset_in_block(ocean, asset, block_height):
 class Challenge(DaemonThread):
     # store private key for signing
     def set_key(self, addr):
-        priv = self.service_ocean.dumpprivkey(addr)
+        priv = self.ocean.dumpprivkey(addr)
         decoded = base58.b58decode(priv)[1:-5] # check for compressed or not
         self.key = CECKey()
         self.key.set_secretbytes(decoded)
         self.key.set_compressed(True)
 
+    # given fee pubkey set corresponding challenge signing key
+    def set_key_from_feepubkey(self, feepubkey):
+        # set key to feepubkey's private key for signing of challenges
+        self.client_fee_pubkey = feepubkey
+        addr = key_to_p2pkh_version(feepubkey, self.nodeaddrprefix)
+        self.set_key(addr)
+        self.logger.info("Challenge signing key updated.")
+
     # gen new feepubkey and set self.key, returns corresponding address
     def gen_feepubkey(self):
-        address = self.service_ocean.getnewaddress()
+        address = self.ocean.getnewaddress()
         self.set_key(address)
-        self.client_fee_pubkey = self.service_ocean.validateaddress(address)["pubkey"]
+        self.client_fee_pubkey = self.ocean.validateaddress(address)["pubkey"]
         return address
 
     # Check if wallet has made previous bid which is still active. Prevents bidding
@@ -78,20 +86,21 @@ class Challenge(DaemonThread):
             txs = self.service_ocean.listunspent(0,request_age,[],True)
 
             # Search for bid tx in all txs made since request confirmed
-            txs.reverse() # Use first found as this GNs bid.
             for tx in txs:
                 if tx["confirmations"] == 0: # check if unconfirmed tx is bid
                     tx = self.service_ocean.getrawtransaction(tx["txid"],True)
                     # check if request txid in any tx output scriptPubKey
-                    if any(hex_str_rev_hex_str(self.request["txid"]) in vout["scriptPubKey"]["hex"] for vout in tx["vout"]):
-                        self.logger.info("Previously made bid found. Txid: {}".format(tx["txid"]))
-                        return tx["txid"]
+                    for vout in tx["vout"]:
+                        if hex_str_rev_hex_str(self.request["txid"]) in vout["scriptPubKey"]["hex"]:
+                            self.logger.info("Previously made bid found. Txid: {}".format(tx["txid"]))
+                            # int + OP_CHECKMULTISIG = 12 bytes up to 12+66 byte pubkey
+                            bid_feepubkey = vout["scriptPubKey"]["hex"][12:78]
+                            self.set_key_from_feepubkey(bid_feepubkey)
+                            return tx["txid"]
                 for bid in bids: # quicker to simply compare txids for confirmed txs
                     if tx["txid"] == bid["txid"]:
                         self.logger.info("Previously made bid found: {}".format(bid))
-                        # set key to feepubkey's private key for signing of challenges
-                        addr = key_to_p2pkh_version(bid["feePubKey"], self.nodeaddrprefix)
-                        self.set_key(addr)
+                        self.set_key_from_feepubkey(bid["feePubKey"])
                         return bid["txid"]
             return None
         except Exception:

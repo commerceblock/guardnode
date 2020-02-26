@@ -98,6 +98,7 @@ class ChallengeTest(BitcoinTestFramework):
         tx = self.nodes[0].listunspent(1, 9999999, [], True, "CBT")[0]
         change = float(tx["amount"]) - 5 - 0.001
         addr = self.nodes[1].getnewaddress() # receive address not in service_ocean wallet
+        pubkey = self.nodes[1].validateaddress(addr)["pubkey"]
         input = [{"txid":tx["txid"],"vout":tx["vout"]}]
         bidtxraw = self.nodes[0].createrawbidtx(input,{"feePubkey":pubkey,"pubkey":pubkey,
             "value":5,"change":change,"changeAddress":addr,"fee":0.001,"endBlockHeight":blockcount+20,"requestTxid":requesttxid2})
@@ -114,6 +115,7 @@ class ChallengeTest(BitcoinTestFramework):
         tx = self.nodes[0].listunspent(100, 9999999, [], False, "CBT")[0]
         change = float(tx["amount"]) - 5 - 0.001
         addr = self.nodes[0].getnewaddress()
+        pubkey = self.nodes[0].validateaddress(addr)["pubkey"]
         input = [{"txid":tx["txid"],"vout":tx["vout"]}]
         bidtxraw = self.nodes[0].createrawbidtx(input,{"feePubkey":pubkey,"pubkey":pubkey,
         "value":5,"change":change,"changeAddress":addr,"fee":0.001,"endBlockHeight":blockcount+20,"requestTxid":requesttxid2})
@@ -136,7 +138,7 @@ class ChallengeTest(BitcoinTestFramework):
         # Test with unconfirmed tx
         # make bid on first request but do not mine
         challenge.genesis = genesis
-        challenge.check_for_request() # update request 
+        challenge.check_for_request() # update request
         tx = self.nodes[0].listunspent(100, 9999999, [], False, "CBT")[0]
         change = float(tx["amount"]) - 5 - 0.001
         input = [{"txid":tx["txid"],"vout":tx["vout"]}]
@@ -144,13 +146,24 @@ class ChallengeTest(BitcoinTestFramework):
         "value":5,"change":change,"changeAddress":addr,"fee":0.001,"endBlockHeight":blockcount+19,"requestTxid":requesttxid1})
         challenge.bid_txid = self.nodes[0].sendrawtransaction(self.nodes[0].signrawtransaction(bidtxraw)["hex"])
         assert_equal(challenge.check_for_bid_from_wallet(),challenge.bid_txid) # bid tx found
-
+        # check key set to corresponding priv key to bids feepubkey
+        self.nodes[0].generate(1) # mine bid tx for easy access to bid feepubkey
+        request = self.nodes[0].getrequestbids(challenge.request["txid"])
+        bidfeepubkey = next(bid["feePubKey"] for bid in request["bids"] if bid["txid"] == challenge.bid_txid)
+        assert_equal(CPubKey(challenge.key.get_pubkey()).hex(),bidfeepubkey)
 
         # Test gen_feepubkey() and set_key()
         addr = challenge.gen_feepubkey()
         assert_is_hex_string(challenge.client_fee_pubkey) # check exists
         # Check resulting priv key corresponds to fee pub key
         assert_equal(CPubKey(challenge.key.get_pubkey()).hex(),challenge.client_fee_pubkey)
+
+
+        # Test set_key_from_feepubkey()
+        addr = self.nodes[0].getnewaddress()
+        pubkey = self.nodes[0].validateaddress(addr)["pubkey"]
+        challenge.set_key_from_feepubkey(pubkey)
+        assert_equal(CPubKey(challenge.key.get_pubkey()).hex(),pubkey)
 
 
         # Test asset_in_block()
