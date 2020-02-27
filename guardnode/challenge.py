@@ -4,15 +4,15 @@ import json
 import requests
 import sys
 import base58
+import math
 from time import sleep
 from .daemon import DaemonThread
 from .bid import BidHandler
 from .qa.tests.test_framework.util import hex_str_rev_hex_str, bytes_to_hex_str, hex_str_to_rev_bytes
-from .qa.tests.test_framework.address import key_to_p2pkh_version
+from .qa.tests.test_framework.address import key_to_p2pkh_version, byte_to_base58
 from .qa.tests.test_framework.key import CECKey
 from .qa.tests.test_framework.authproxy import AuthServiceProxy
 
-expos = list(map(lambda n: n**2,range(1,15)))
 
 def connect(host, user, pw, logger):
     conn = AuthServiceProxy("http://%s:%s@%s"% (user, pw, host))
@@ -62,8 +62,29 @@ class Challenge(DaemonThread):
     def set_key_from_feepubkey(self, feepubkey):
         # set key to feepubkey's private key for signing of challenges
         self.client_fee_pubkey = feepubkey
-        addr = key_to_p2pkh_version(feepubkey, self.nodeaddrprefix)
-        self.set_key(addr)
+        try:
+            addr = key_to_p2pkh_version(feepubkey, self.nodeaddrprefix)
+            self.set_key(addr)
+        except Exception:
+            # Could not find key in wallet.
+            # This is due to Version 3.0 generating feepubkeys from the service
+            # wallet rather that the client wallet.
+            # Get relevant key, convert to client chain format, import to client chain wallet.
+            # This code can be removed when we are confident that the depreciated version is no longer
+            # in use and making bids
+            serv_nodeaddrprefix = self.service_ocean.getsidechaininfo()["addr_prefixes"]["PUBKEY_ADDRESS"]
+            serv_addr = key_to_p2pkh_version(feepubkey, serv_nodeaddrprefix)
+            serv_priv_key = self.service_ocean.dumpprivkey(serv_addr)
+            priv_key_bytes = base58.b58decode(serv_priv_key)[1:-5]
+            cli_secretkeyprefix = self.ocean.getsidechaininfo()["addr_prefixes"]["SECRET_KEY"]
+            cli_priv_key = byte_to_base58(priv_key_bytes + b'\x01', cli_secretkeyprefix)
+
+            # import key to client wallet
+            self.ocean.importprivkey(cli_priv_key,"",False)
+            # save key address for challenge signing
+            addr = key_to_p2pkh_version(feepubkey, self.nodeaddrprefix)
+            self.set_key(addr)
+
         self.logger.info("Challenge signing key updated.")
 
     # gen new feepubkey and set self.key, returns corresponding address
@@ -93,8 +114,8 @@ class Challenge(DaemonThread):
                     for vout in tx["vout"]:
                         if hex_str_rev_hex_str(self.request["txid"]) in vout["scriptPubKey"]["hex"]:
                             self.logger.info("Previously made bid found. Txid: {}".format(tx["txid"]))
-                            # int + OP_CHECKMULTISIG = 12 bytes up to 12+66 byte pubkey
-                            bid_feepubkey = vout["scriptPubKey"]["hex"][12:78]
+                            # ... 66 byte pubkey + int + OP_CHECKMULTISIG
+                            bid_feepubkey = vout["scriptPubKey"]["hex"][-70:-4]
                             self.set_key_from_feepubkey(bid_feepubkey)
                             return tx["txid"]
                 for bid in bids: # quicker to simply compare txids for confirmed txs
@@ -103,7 +124,7 @@ class Challenge(DaemonThread):
                         self.set_key_from_feepubkey(bid["feePubKey"])
                         return bid["txid"]
             return None
-        except Exception:
+        except Exception: # no bids
             return None
 
     def __init__(self, args):
@@ -189,7 +210,7 @@ class Challenge(DaemonThread):
                     sleep(self.args.serviceblocktime)
             else:
                 self.no_request_msg_count += 1
-                if self.no_request_msg_count in expos: # gradually get more quiet
+                if math.sqrt(self.no_request_msg_count).is_integer() : # gradually get more quiet
                     self.logger.info("No active requests for genesis: {}.".format(self.genesis))
                 sleep(self.args.serviceblocktime)
 
@@ -219,7 +240,7 @@ class Challenge(DaemonThread):
                 return False
 
             # no tickets left
-            num_bids = len(self.service_ocean.getrequestbids(self.request["txid"])["bids"])
+            num_bids = len(requestbids)
             if num_bids >= self.request["numTickets"]:
                 self.logger.warn("No tickets left on this auction.")
                 return False

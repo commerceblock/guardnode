@@ -29,8 +29,8 @@ def parse_args():
 
     parser.add_argument('--nodelogfile', required=False, type=str, default=NODE_LOG_FILE_DEFAULT, help="Node log file destination")
 
-    parser.add_argument('--bidpubkey', required=False, type=str, help="Guardnode winning bid public key")
-    parser.add_argument('--bidlimit', required=False, type=float, default="1000", help="Guardnode upper bid limit")
+    parser.add_argument('--bidpubkey', required=False, type=str, help="Public key for Gaurdnodes fee payments")
+    parser.add_argument('--bidlimit', required=False, type=float, default="0.0", help="Guardnode upper bid limit")
     parser.add_argument('--uniquebidpubkeys', required=False, action='store_true', default=False, help="Flag to indicate new bid pubkey generation for each bid")
 
     parser.add_argument('--challengehost', required=False, type=str, default=CHALLENGE_HOST_DEFAULT, help="Challenger host address")
