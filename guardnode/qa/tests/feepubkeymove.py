@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-"""test bidding functionality
+"""test feepubkey import to client chain wallet.
 
 """
 
@@ -25,7 +25,7 @@ class Args:
         self.bidlimit = 15
         self.serviceblocktime = 1
 
-class BiddingTest(BitcoinTestFramework):
+class feepubkeyMoveTest(BitcoinTestFramework):
 
     def __init__(self):
         super().__init__()
@@ -63,4 +63,4 @@ class BiddingTest(BitcoinTestFramework):
 
 
 if __name__ == '__main__':
-    BiddingTest().main()
+    feepubkeyMoveTest().main()

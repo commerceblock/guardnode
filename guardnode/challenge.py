@@ -39,7 +39,7 @@ def get_challenge_asset(ocean):
 
 # Find if assetid in given block
 def asset_in_block(ocean, asset, block_height):
-    if asset == None or len(str(asset)) < 64:    # method may return true for non-assetid valuesc (such as None or 0)
+    if asset == None or len(str(asset)) < 64:    # method may return true for non-assetid values (such as None or 0)
         return None
     block = ocean.getblock(ocean.getblockhash(block_height), True)
     if "tx" in block:
@@ -264,7 +264,9 @@ class Challenge(DaemonThread):
                 sleep(self.args.serviceblocktime)
             elif block_height > self.last_block_height:
                 self.logger.info("Current block height: {}".format(block_height))
-                challenge_txid = asset_in_block(self.ocean, self.rev_challengeasset, block_height)
+                # assumes client and service chains have same block time for now
+                client_block_height = self.ocean.getblockcount()
+                challenge_txid = asset_in_block(self.ocean, self.rev_challengeasset, client_block_height)
                 if challenge_txid != None:
                     self.logger.info("Challenge found at height: {}".format(block_height))
                     self.respond(challenge_txid)
