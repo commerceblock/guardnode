@@ -111,7 +111,8 @@ testScripts = [
     'bidding.py',
     'initialise.py',
     'challenge.py',
-    'integration.py'
+    'integration.py',
+    'feepubkeymove.py'
 ]
 if ENABLE_ZMQ:
     testScripts.append('zmq_test.py')

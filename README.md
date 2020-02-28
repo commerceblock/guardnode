@@ -23,7 +23,7 @@ Guardnode daemon watches client blockchain and generates alerts for any errors o
 - `--serviceblocktime`: Service block time (Optional, defaults to 60)
 - `--nodelogfile`: Node log file destination
 - `--challengehost`: Challenge host address
-- `--bidlimit`: Guardnode upper bid limit
+- `--bidlimit`: Guardnode upper bid limit  (Optional, defaults to 1000 CBT)
 - `--bidpubkey`: Guardnode winning bid public key (Optional, daemon will generate one)
 - `--uniquebidpubkeys`: Flag to activate generation of fresh bid public keys for each bid (Optional)
 

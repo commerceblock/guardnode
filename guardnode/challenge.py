@@ -4,11 +4,12 @@ import json
 import requests
 import sys
 import base58
+import math
 from time import sleep
 from .daemon import DaemonThread
 from .bid import BidHandler
 from .qa.tests.test_framework.util import hex_str_rev_hex_str, bytes_to_hex_str, hex_str_to_rev_bytes
-from .qa.tests.test_framework.address import key_to_p2pkh_version
+from .qa.tests.test_framework.address import key_to_p2pkh_version, byte_to_base58
 from .qa.tests.test_framework.key import CECKey
 from .qa.tests.test_framework.authproxy import AuthServiceProxy
 
@@ -38,7 +39,7 @@ def get_challenge_asset(ocean):
 
 # Find if assetid in given block
 def asset_in_block(ocean, asset, block_height):
-    if asset == None or len(str(asset)) < 64:    # method may return true for non-assetid valuesc (such as None or 0)
+    if asset == None or len(str(asset)) < 64:    # method may return true for non-assetid values (such as None or 0)
         return None
     block = ocean.getblock(ocean.getblockhash(block_height), True)
     if "tx" in block:
@@ -51,41 +52,81 @@ def asset_in_block(ocean, asset, block_height):
 class Challenge(DaemonThread):
     # store private key for signing
     def set_key(self, addr):
-        priv = self.service_ocean.dumpprivkey(addr)
+        priv = self.ocean.dumpprivkey(addr)
         decoded = base58.b58decode(priv)[1:-5] # check for compressed or not
         self.key = CECKey()
         self.key.set_secretbytes(decoded)
         self.key.set_compressed(True)
 
+    # given fee pubkey set corresponding challenge signing key
+    def set_key_from_feepubkey(self, feepubkey):
+        # set key to feepubkey's private key for signing of challenges
+        self.client_fee_pubkey = feepubkey
+        try:
+            addr = key_to_p2pkh_version(feepubkey, self.nodeaddrprefix)
+            self.set_key(addr)
+        except Exception:
+            # Could not find key in wallet.
+            # This is due to Version 3.0 generating feepubkeys from the service
+            # wallet rather that the client wallet.
+            # Get relevant key, convert to client chain format, import to client chain wallet.
+            # This code can be removed when we are confident that the depreciated version is no longer
+            # in use and making bids
+            serv_nodeaddrprefix = self.service_ocean.getsidechaininfo()["addr_prefixes"]["PUBKEY_ADDRESS"]
+            serv_addr = key_to_p2pkh_version(feepubkey, serv_nodeaddrprefix)
+            serv_priv_key = self.service_ocean.dumpprivkey(serv_addr)
+            priv_key_bytes = base58.b58decode(serv_priv_key)[1:-5]
+            cli_secretkeyprefix = self.ocean.getsidechaininfo()["addr_prefixes"]["SECRET_KEY"]
+            cli_priv_key = byte_to_base58(priv_key_bytes + b'\x01', cli_secretkeyprefix)
+
+            # import key to client wallet
+            self.ocean.importprivkey(cli_priv_key,"",False)
+            # save key address for challenge signing
+            addr = key_to_p2pkh_version(feepubkey, self.nodeaddrprefix)
+            self.set_key(addr)
+
+        self.logger.info("Challenge signing key updated.")
+
     # gen new feepubkey and set self.key, returns corresponding address
     def gen_feepubkey(self):
-        address = self.service_ocean.getnewaddress()
+        address = self.ocean.getnewaddress()
         self.set_key(address)
-        self.client_fee_pubkey = self.service_ocean.validateaddress(address)["pubkey"]
+        self.client_fee_pubkey = self.ocean.validateaddress(address)["pubkey"]
         return address
-        
+
     # Check if wallet has made previous bid which is still active. Prevents bidding
-    # twice in the event of guardnode shut down in the middle of a service period
+    # twice in the event of guardnode shut down in the middle of a service period.
     # Return bid txid if found, None otherwise
     def check_for_bid_from_wallet(self):
         try:
             # check for bids in currently active request
-            request = self.service_ocean.getrequests(self.genesis)[0]
-            bids = self.service_ocean.getrequestbids(request["txid"])["bids"]
-            if not len(bids): # no bids
-                return None
-            # check for bid with output address owned by this wallet
-            list_unspent = self.service_ocean.listunspent(0, 9999999, [], True, "CBT")
-            for unspent in list_unspent:
-                for bid in bids:
-                    # assume that if wallet regards bid output as owned then bid was made by this wallet
-                    if unspent["txid"] == bid["txid"]: 
+            bids = self.service_ocean.getrequestbids(self.request["txid"])["bids"]
+
+            # Get transactions made since request tx was confirmed
+            request_age = self.service_ocean.getblockcount() - self.request["confirmedBlockHeight"] + 1 # in blocks
+            txs = self.service_ocean.listunspent(0,request_age,[],True)
+
+            # Search for bid tx in all txs made since request confirmed
+            for tx in txs:
+                if tx["confirmations"] == 0: # check if unconfirmed tx is bid
+                    tx = self.service_ocean.getrawtransaction(tx["txid"],True)
+                    # check if request txid in any tx output scriptPubKey
+                    for vout in tx["vout"]:
+                        if hex_str_rev_hex_str(self.request["txid"]) in vout["scriptPubKey"]["hex"]:
+                            self.logger.info("Previously made bid found. Txid: {}".format(tx["txid"]))
+                            # ... 66 byte pubkey + int + OP_CHECKMULTISIG
+                            bid_feepubkey = vout["scriptPubKey"]["hex"][-70:-4]
+                            self.set_key_from_feepubkey(bid_feepubkey)
+                            return tx["txid"]
+                for bid in bids: # quicker to simply compare txids for confirmed txs
+                    if tx["txid"] == bid["txid"]:
                         self.logger.info("Previously made bid found: {}".format(bid))
+                        self.set_key_from_feepubkey(bid["feePubKey"])
                         return bid["txid"]
             return None
-        except Exception:
+        except Exception: # no bids
             return None
-        
+
     def __init__(self, args):
         super().__init__()
         self.args = args
@@ -93,6 +134,7 @@ class Challenge(DaemonThread):
         self.logger = logging.getLogger("Challenge")
         self.ocean = connect(self.args.rpchost, self.args.rpcuser, self.args.rpcpass,self.logger)
         self.service_ocean = connect(self.args.servicerpchost, self.args.servicerpcuser, self.args.servicerpcpass,self.logger)
+        self.no_request_msg_count = 0
         # if new node started give time for it to catch up
         while not hasattr(self,'genesis'):
             try:
@@ -111,6 +153,12 @@ class Challenge(DaemonThread):
             self.logger.error("No Challenge asset found in client chain")
             sys.exit(1)
 
+        # get address prefix
+        self.nodeaddrprefix = self.ocean.getsidechaininfo()["addr_prefixes"]["PUBKEY_ADDRESS"]
+        if not hasattr(self, 'nodeaddrprefix'):
+            self.logger.error("Error getting address prefix - check node version")
+            sys.exit(1)
+
         # bidpubkey:
         # - if set then use for each bid
         # - if not set generate new and use for each bid
@@ -123,13 +171,8 @@ class Challenge(DaemonThread):
                 addr = self.gen_feepubkey()
             else:
                 self.client_fee_pubkey = args.bidpubkey
-                # get address prefix
-                self.args.nodeaddrprefix = self.ocean.getsidechaininfo()["addr_prefixes"]["PUBKEY_ADDRESS"]
-                if not hasattr(self.args, 'nodeaddrprefix'):
-                    self.logger.error("Error getting address prefix - check node version")
-                    sys.exit(1)
                 # test valid key and imported
-                addr = key_to_p2pkh_version(self.client_fee_pubkey, args.nodeaddrprefix)
+                addr = key_to_p2pkh_version(self.client_fee_pubkey, self.nodeaddrprefix)
                 validate = self.ocean.validateaddress(addr)
                 if validate['ismine'] == False:
                     self.logger.error("Key for address {} is missing from the wallet".format(addr))
@@ -138,9 +181,11 @@ class Challenge(DaemonThread):
                 self.set_key(addr)
             self.logger.info("Fee address: {} and pubkey: {}".format(addr, self.client_fee_pubkey))
 
-        self.request = None # currently active request
-        self.bid_txid = self.check_for_bid_from_wallet() 
-        
+        # initial check for request and previously made bid
+        self.request = None
+        self.check_for_request()
+        self.bid_txid = self.check_for_bid_from_wallet()
+
         # Init bid handler
         self.bidhandler = BidHandler(self.service_ocean, args.bidlimit)
 
@@ -148,23 +193,25 @@ class Challenge(DaemonThread):
     # Main loop: await request. Sub loop: run search for challenge
     def run(self):
         self.last_block_height = 0
-        # Wait for request 
+        # Wait for request
         while not self.stop_event.is_set():
-            self.request = self.check_for_request()
-            if self.request:
+            if self.check_for_request():
+                self.no_request_msg_count = 0
                 if hasattr(self,"uniquebidpubkeys"):
                     self.gen_feepubkey() # Gen new pubkey if required
-                if not self.check_bid_made():
+                if self.check_ready_for_bid():
                     self.bid_txid = self.bidhandler.do_request_bid(self.request, self.client_fee_pubkey)
                 if self.bid_txid is not None: # bid tx sent
                     while not self.stop_event.is_set(): # Wait for challenge on bid
                         if not self.await_challenge():
                             break   # request ended
-                        sleep(0.1) # seconds
+                        sleep(1) # seconds
                 else:
                     sleep(self.args.serviceblocktime)
             else:
-                self.logger.info("No active requests for genesis: {}".format(self.genesis))
+                self.no_request_msg_count += 1
+                if math.sqrt(self.no_request_msg_count).is_integer() : # gradually get more quiet
+                    self.logger.info("No active requests for genesis: {}.".format(self.genesis))
                 sleep(self.args.serviceblocktime)
 
     # look for and return active request in service chain
@@ -172,29 +219,42 @@ class Challenge(DaemonThread):
         try:
             requests = self.service_ocean.getrequests(self.genesis)
             if len(requests) > 0:
-                if not self.request or not self.request["txid"] == requests[0]["txid"]:
+                if not self.request == requests[0]:
+                    self.request = requests[0]
                     self.logger.info("Found request: {}".format(requests[0]))
-                    return requests[0]
+                return True
         except Exception as e:
             self.logger.error(e)
             self.error = e
         return False
-        
-    # return true if GN bid already made for current request, otherwise return false
-    def check_bid_made(self):
+
+    # Check if ready for bid to be made, otherwise return false
+    def check_ready_for_bid(self):
         if not self.request:
             return False
-        requestbids = self.service_ocean.getrequestbids(self.request["txid"])["bids"]
-        if any(bid["txid"] == self.bid_txid for bid in requestbids):
-            return True
-        return False
-        
+
+        try:
+            # bid already made for current request
+            requestbids = self.service_ocean.getrequestbids(self.request["txid"])["bids"]
+            if any(bid["txid"] == self.bid_txid for bid in requestbids):
+                return False
+
+            # no tickets left
+            num_bids = len(requestbids)
+            if num_bids >= self.request["numTickets"]:
+                self.logger.warn("No tickets left on this auction.")
+                return False
+        except Exception: # thrown if no bids on request -> ready for bid
+            pass
+        # otherwise bid
+        return True
+
     # Wait for challenge. Return False if service period over, True to continue looping.
     # Respond to challenge if found
     def await_challenge(self):
         try:
-            block_height = self.ocean.getblockcount()
-            if block_height > self.request["endBlockHeight"]:
+            block_height = self.service_ocean.getblockcount()
+            if block_height >= self.request["endBlockHeight"]:
                 self.logger.info("Request {} ended".format(self.request["txid"]))
                 self.request = None
                 self.bid_txid = None
@@ -202,15 +262,16 @@ class Challenge(DaemonThread):
             elif block_height < self.request["startBlockHeight"]:
                 self.logger.info("Request {} not started yet".format(self.request["txid"]))
                 sleep(self.args.serviceblocktime)
-                return True
             elif block_height > self.last_block_height:
                 self.logger.info("Current block height: {}".format(block_height))
-                challenge_txid = asset_in_block(self.ocean, self.rev_challengeasset, block_height)
+                # assumes client and service chains have same block time for now
+                client_block_height = self.ocean.getblockcount()
+                challenge_txid = asset_in_block(self.ocean, self.rev_challengeasset, client_block_height)
                 if challenge_txid != None:
                     self.logger.info("Challenge found at height: {}".format(block_height))
                     self.respond(challenge_txid)
                 self.last_block_height = block_height
-                return True
+            return True
         except Exception as e:
             self.logger.error(e)
             self.error = e

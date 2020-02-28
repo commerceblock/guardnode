@@ -114,18 +114,25 @@ class IntegrationTest(BitcoinTestFramework):
         assert(GN_log_contains(self.options.tmpdir,'Challenge found at height: '+str(self.nodes[0].getblockcount())))
         time.sleep(WAIT_FOR_WORK)
         assert(GN_log_contains(self.options.tmpdir,'Could not connect to coordinator to send response data:'))
-        
+
         # Check GN continues to watch request after challenge response
         self.nodes[0].generate(1)
         time.sleep(WAIT_FOR_WORK)
         assert(GN_log_contains(self.options.tmpdir,'Current block height: '+str(self.nodes[0].getblockcount())))
-        
-        
+
+
         # Test previous bid picked up by GN upon restart
         stop_guardnode(guardnode)
         guardnode = start_guardnode(self.options.tmpdir,0)
         time.sleep(WAIT_FOR_WORK)
         assert(GN_log_contains(self.options.tmpdir,"Previously made bid found: {}".format(bids[2])))
-        
+
+
+        # Test request forgotten about once request finished
+        request = self.nodes[0].getrequests()[0]
+        self.nodes[0].generate(request["endBlockHeight"] - self.nodes[0].getblockcount())
+        time.sleep(WAIT_FOR_WORK)
+        assert(GN_log_contains(self.options.tmpdir,"No active requests for genesis: {}".format(genesis)))
+
 if __name__ == '__main__':
     IntegrationTest().main()

@@ -129,7 +129,7 @@ class BidHandler():
 
             # Import address so TX_LOCKED_MULTISIG output can be spent from
             address = self.service_ocean.decoderawtransaction(signed_raw_bid_tx['hex'])["vout"][0]["scriptPubKey"]["hex"]
-            self.service_ocean.importaddress(address)
+            self.service_ocean.importaddress(address,"",False)
 
             self.logger.info("Bid {} submitted".format(bid_txid))
             return bid_txid
